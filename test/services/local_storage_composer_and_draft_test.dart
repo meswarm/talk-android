@@ -47,6 +47,17 @@ void main() {
     expect(await ls.loadCompressUploadImages(), true);
   });
 
+  test('voice keep alive defaults off and roundtrips', () async {
+    final ls = LocalStorage();
+    expect(await ls.loadVoiceKeepAliveEnabled(), false);
+
+    await ls.saveVoiceKeepAliveEnabled(true);
+    expect(await ls.loadVoiceKeepAliveEnabled(), true);
+
+    await ls.saveVoiceKeepAliveEnabled(false);
+    expect(await ls.loadVoiceKeepAliveEnabled(), false);
+  });
+
   test('bubble max height pct clamps and roundtrips', () async {
     final ls = LocalStorage();
 
