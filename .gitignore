@@ -17,6 +17,7 @@ migrate_working_dir/
 # Local agent/tooling state
 .codex
 .superpowers/
+.worktrees/
 
 # Local credentials and signing keys
 *.jks
