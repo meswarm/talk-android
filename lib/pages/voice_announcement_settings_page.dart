@@ -3,6 +3,7 @@ import 'dart:async' show unawaited;
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../keep_alive/keep_alive_controller.dart';
 import '../theme/app_colors.dart';
 import '../tts/doubao_tts_models.dart';
 import '../tts/doubao_tts_service.dart';
@@ -179,6 +180,9 @@ class _VoiceAnnouncementSettingsPageState
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final sub = isDark ? AppColors.darkSubtext : AppColors.lightSubtext;
+    final tts = context.watch<DoubaoTtsService>();
+    final keepAlive = context.watch<KeepAliveController>();
+    final ttsConfigured = tts.config?.isConfigured == true;
 
     return Scaffold(
       appBar: AppBar(title: const Text('语音播报')),
@@ -200,6 +204,46 @@ class _VoiceAnnouncementSettingsPageState
             title: const Text('启用新消息语音播报'),
             contentPadding: EdgeInsets.zero,
           ),
+          const Divider(height: 28),
+          const Text(
+            '常驻监听模式',
+            style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            ttsConfigured
+                ? '开启后 Android 会显示一个低优先级常驻通知，用于降低系统回收后漏播风险。'
+                : '先保存可用的语音播报配置后才能开启。',
+            style: TextStyle(fontSize: 13, color: sub),
+          ),
+          SwitchListTile(
+            value: keepAlive.enabled,
+            onChanged: !ttsConfigured || keepAlive.busy
+                ? null
+                : (v) => unawaited(keepAlive.setEnabled(v)),
+            title: const Text('启用常驻监听模式'),
+            subtitle: Text(keepAlive.running ? '常驻监听中' : '未开启常驻监听'),
+            contentPadding: EdgeInsets.zero,
+          ),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: TextButton(
+              onPressed: keepAlive.busy
+                  ? null
+                  : () => unawaited(
+                      keepAlive.openBatteryOptimizationSettings(),
+                    ),
+              child: const Text('电池优化设置'),
+            ),
+          ),
+          if (keepAlive.error != null) ...[
+            const SizedBox(height: 4),
+            Text(
+              keepAlive.error!,
+              style: const TextStyle(color: Colors.red, fontSize: 13),
+            ),
+          ],
+          const Divider(height: 28),
           const SizedBox(height: 8),
           DropdownButtonFormField<DoubaoTtsAuthMode>(
             initialValue: _authMode,
