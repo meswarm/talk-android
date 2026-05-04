@@ -47,25 +47,43 @@ void main() {
     expect(await ls.loadCompressUploadImages(), true);
   });
 
+  test('voice keep alive defaults off and roundtrips', () async {
+    final ls = LocalStorage();
+    expect(await ls.loadVoiceKeepAliveEnabled(), false);
+
+    await ls.saveVoiceKeepAliveEnabled(true);
+    expect(await ls.loadVoiceKeepAliveEnabled(), true);
+
+    await ls.saveVoiceKeepAliveEnabled(false);
+    expect(await ls.loadVoiceKeepAliveEnabled(), false);
+  });
+
   test('bubble max height pct clamps and roundtrips', () async {
     final ls = LocalStorage();
 
-    expect(await ls.loadBubbleMaxHeightPct(), LocalStorage.defaultBubbleMaxHeightPct);
+    expect(
+      await ls.loadBubbleMaxHeightPct(),
+      LocalStorage.defaultBubbleMaxHeightPct,
+    );
 
     await ls.saveBubbleMaxHeightPct(99);
-    expect(await ls.loadBubbleMaxHeightPct(), LocalStorage.maxBubbleMaxHeightPct);
+    expect(
+      await ls.loadBubbleMaxHeightPct(),
+      LocalStorage.maxBubbleMaxHeightPct,
+    );
 
     await ls.saveBubbleMaxHeightPct(5);
-    expect(await ls.loadBubbleMaxHeightPct(), LocalStorage.minBubbleMaxHeightPct);
+    expect(
+      await ls.loadBubbleMaxHeightPct(),
+      LocalStorage.minBubbleMaxHeightPct,
+    );
 
     await ls.saveBubbleMaxHeightPct(40);
     expect(await ls.loadBubbleMaxHeightPct(), 40);
   });
 
   test('composer height migrates from legacy int key', () async {
-    SharedPreferences.setMockInitialValues({
-      'talk_composer_height_pct': 33,
-    });
+    SharedPreferences.setMockInitialValues({'talk_composer_height_pct': 33});
     LocalStorage().resetPrefsCacheForTest();
     final ls = LocalStorage();
     expect(await ls.loadComposerHeightPct(), 33);
@@ -75,9 +93,7 @@ void main() {
   });
 
   test('draft migrates from legacy draft_ prefix', () async {
-    SharedPreferences.setMockInitialValues({
-      'draft_!r:hs': 'hello',
-    });
+    SharedPreferences.setMockInitialValues({'draft_!r:hs': 'hello'});
     LocalStorage().resetPrefsCacheForTest();
     final ls = LocalStorage();
     expect(await ls.getDraft('!r:hs'), 'hello');

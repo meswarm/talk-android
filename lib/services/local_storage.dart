@@ -41,6 +41,9 @@ class LocalStorage {
   /// 插入聊天（R2 / Matrix）前是否压缩位图图片；默认开启。
   static const _keyCompressUploadImages = 'talk_compress_upload_images';
 
+  /// Android foreground-service mode for voice announcement reliability.
+  static const _keyVoiceKeepAliveEnabled = 'talk_voice_keep_alive_enabled';
+
   static const _keyBubbleMediaPreviewSizes =
       'talk_bubble_media_preview_sizes_v1';
   static const _keyTableMediaPreviewSizes = 'talk_table_media_preview_sizes_v1';
@@ -131,6 +134,16 @@ class LocalStorage {
   Future<String> getUsername() async {
     final prefs = await _preferences;
     return prefs.getString(_keyUsername) ?? '';
+  }
+
+  Future<bool> loadVoiceKeepAliveEnabled() async {
+    final prefs = await _preferences;
+    return prefs.getBool(_keyVoiceKeepAliveEnabled) ?? false;
+  }
+
+  Future<void> saveVoiceKeepAliveEnabled(bool enabled) async {
+    final prefs = await _preferences;
+    await prefs.setBool(_keyVoiceKeepAliveEnabled, enabled);
   }
 
   // ========== 消息草稿 ==========
