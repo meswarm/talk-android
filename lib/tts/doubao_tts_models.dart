@@ -21,6 +21,14 @@ class DoubaoTtsConfig {
   final String accessKey;
   final String resourceId;
   final String speaker;
+  final int speechRate;
+  final int loudnessRate;
+  final bool markdownFilterEnabled;
+  final bool latexEnabled;
+  final bool filterParentheses;
+  final String explicitDialect;
+  final int pitch;
+  final List<String> contextTexts;
 
   const DoubaoTtsConfig({
     required this.enabled,
@@ -30,6 +38,14 @@ class DoubaoTtsConfig {
     this.accessKey = '',
     required this.resourceId,
     required this.speaker,
+    this.speechRate = 0,
+    this.loudnessRate = 0,
+    this.markdownFilterEnabled = false,
+    this.latexEnabled = false,
+    this.filterParentheses = true,
+    this.explicitDialect = '',
+    this.pitch = 0,
+    this.contextTexts = const [],
   });
 
   DoubaoTtsConfig copyWith({
@@ -40,6 +56,14 @@ class DoubaoTtsConfig {
     String? accessKey,
     String? resourceId,
     String? speaker,
+    int? speechRate,
+    int? loudnessRate,
+    bool? markdownFilterEnabled,
+    bool? latexEnabled,
+    bool? filterParentheses,
+    String? explicitDialect,
+    int? pitch,
+    List<String>? contextTexts,
   }) {
     return DoubaoTtsConfig(
       enabled: enabled ?? this.enabled,
@@ -49,6 +73,15 @@ class DoubaoTtsConfig {
       accessKey: accessKey ?? this.accessKey,
       resourceId: resourceId ?? this.resourceId,
       speaker: speaker ?? this.speaker,
+      speechRate: speechRate ?? this.speechRate,
+      loudnessRate: loudnessRate ?? this.loudnessRate,
+      markdownFilterEnabled:
+          markdownFilterEnabled ?? this.markdownFilterEnabled,
+      latexEnabled: latexEnabled ?? this.latexEnabled,
+      filterParentheses: filterParentheses ?? this.filterParentheses,
+      explicitDialect: explicitDialect ?? this.explicitDialect,
+      pitch: pitch ?? this.pitch,
+      contextTexts: contextTexts ?? this.contextTexts,
     );
   }
 
@@ -60,9 +93,18 @@ class DoubaoTtsConfig {
     'accessKey': accessKey,
     'resourceId': resourceId,
     'speaker': speaker,
+    'speechRate': speechRate,
+    'loudnessRate': loudnessRate,
+    'markdownFilterEnabled': markdownFilterEnabled,
+    'latexEnabled': latexEnabled,
+    'filterParentheses': filterParentheses,
+    'explicitDialect': explicitDialect,
+    'pitch': pitch,
+    'contextTexts': contextTexts,
   };
 
   factory DoubaoTtsConfig.fromJson(Map<String, dynamic> j) {
+    final rawContextTexts = j['contextTexts'];
     return DoubaoTtsConfig(
       enabled: j['enabled'] as bool? ?? false,
       authMode: doubaoTtsAuthModeFromJson(j['authMode']),
@@ -71,6 +113,16 @@ class DoubaoTtsConfig {
       accessKey: j['accessKey'] as String? ?? '',
       resourceId: j['resourceId'] as String? ?? 'seed-tts-2.0',
       speaker: j['speaker'] as String? ?? '',
+      speechRate: j['speechRate'] as int? ?? 0,
+      loudnessRate: j['loudnessRate'] as int? ?? 0,
+      markdownFilterEnabled: j['markdownFilterEnabled'] as bool? ?? false,
+      latexEnabled: j['latexEnabled'] as bool? ?? false,
+      filterParentheses: j['filterParentheses'] as bool? ?? true,
+      explicitDialect: j['explicitDialect'] as String? ?? '',
+      pitch: j['pitch'] as int? ?? 0,
+      contextTexts: rawContextTexts is List
+          ? rawContextTexts.whereType<String>().toList(growable: false)
+          : const [],
     );
   }
 

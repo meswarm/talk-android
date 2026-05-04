@@ -36,10 +36,9 @@ void main() {
     await _tapText(tester, '保存');
     await tester.pumpAndSettle();
 
-    expect(
-      find.text('请填写 APP ID、Access Token、Resource ID 与 Speaker'),
-      findsOneWidget,
-    );
+    expect(find.text('请填写 API Key、Resource ID 与 Speaker'), findsOneWidget);
+    expect(find.text('服务接口认证信息'), findsNothing);
+    expect(find.text('新版 API Key'), findsNothing);
   });
 
   testWidgets('saves config from form fields', (tester) async {
@@ -59,21 +58,65 @@ void main() {
     await tester.tap(find.text('启用新消息语音播报'));
     await tester.pumpAndSettle();
 
-    await _enterTextByLabel(tester, 'APP ID', '3569823009');
-    await _enterTextByLabel(tester, 'Access Token', 'token-123');
+    await _enterTextByLabel(tester, '豆包 API Key', 'api-key-123');
     await _enterTextByLabel(tester, 'Resource ID', 'seed-tts-2.0');
     await _enterTextByLabel(tester, 'Speaker', 'speaker-a');
+    await _enterTextByLabel(tester, '语速', '25');
+    await _enterTextByLabel(tester, '音量', '-10');
+    await _tapText(tester, 'Markdown 解析过滤');
+    await _tapText(tester, '播报 LaTeX 公式');
+    await _tapText(tester, '过滤括号内的部分');
+    await _enterTextByLabel(tester, '音调取值', '4');
+    await _enterTextByLabel(tester, '语音合成辅助信息', '你可以说慢一点吗？\n语气再欢乐一点');
 
     await _tapText(tester, '保存');
     await tester.pumpAndSettle();
 
     expect(store.config, isNotNull);
     expect(store.config!.enabled, isTrue);
-    expect(store.config!.authMode, DoubaoTtsAuthMode.appToken);
-    expect(store.config!.appId, '3569823009');
-    expect(store.config!.accessKey, 'token-123');
+    expect(store.config!.authMode, DoubaoTtsAuthMode.apiKey);
+    expect(store.config!.apiKey, 'api-key-123');
+    expect(store.config!.appId, isEmpty);
+    expect(store.config!.accessKey, isEmpty);
     expect(store.config!.resourceId, 'seed-tts-2.0');
     expect(store.config!.speaker, 'speaker-a');
+    expect(store.config!.speechRate, 25);
+    expect(store.config!.loudnessRate, -10);
+    expect(store.config!.markdownFilterEnabled, isTrue);
+    expect(store.config!.latexEnabled, isTrue);
+    expect(store.config!.filterParentheses, isFalse);
+    expect(store.config!.pitch, 4);
+    expect(store.config!.contextTexts, ['你可以说慢一点吗？', '语气再欢乐一点']);
+  });
+
+  testWidgets('enable switch persists immediately for saved config', (
+    tester,
+  ) async {
+    final store = _MemoryStore();
+    final svc = DoubaoTtsService(
+      store: store,
+      httpClient: _FakeClient(),
+      customAudioPlayer: (_) async {},
+    );
+    await svc.saveConfig(
+      const DoubaoTtsConfig(
+        enabled: false,
+        apiKey: 'api-key',
+        resourceId: 'seed-tts-2.0',
+        speaker: 'speaker-a',
+      ),
+    );
+    final keepAlive = KeepAliveController(bridge: _FakeKeepAliveBridge());
+    await keepAlive.bootstrap();
+
+    await _pumpPage(tester, tts: svc, keepAlive: keepAlive);
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('启用新消息语音播报'));
+    await tester.pumpAndSettle();
+
+    expect(store.config!.enabled, isTrue);
+    expect(svc.enabled, isTrue);
   });
 
   testWidgets(
@@ -114,10 +157,8 @@ void main() {
     await svc.saveConfig(
       const DoubaoTtsConfig(
         enabled: true,
-        authMode: DoubaoTtsAuthMode.appToken,
-        apiKey: '',
-        appId: 'app-id',
-        accessKey: 'access-token',
+        authMode: DoubaoTtsAuthMode.apiKey,
+        apiKey: 'api-key',
         resourceId: 'seed-tts-2.0',
         speaker: 'speaker-a',
       ),

@@ -19,13 +19,18 @@ class VoiceAnnouncementSettingsPage extends StatefulWidget {
 class _VoiceAnnouncementSettingsPageState
     extends State<VoiceAnnouncementSettingsPage> {
   final _apiKey = TextEditingController();
-  final _appId = TextEditingController();
-  final _accessKey = TextEditingController();
   final _resourceId = TextEditingController(text: 'seed-tts-2.0');
   final _speaker = TextEditingController();
+  final _speechRate = TextEditingController(text: '0');
+  final _loudnessRate = TextEditingController(text: '0');
+  final _pitch = TextEditingController(text: '0');
+  final _contextTexts = TextEditingController();
 
   bool _enabled = false;
-  DoubaoTtsAuthMode _authMode = DoubaoTtsAuthMode.appToken;
+  bool _markdownFilterEnabled = false;
+  bool _latexEnabled = false;
+  bool _filterParentheses = true;
+  String _explicitDialect = '';
   bool _busy = false;
   String? _err;
   bool _didHydrate = false;
@@ -41,10 +46,12 @@ class _VoiceAnnouncementSettingsPageState
   @override
   void dispose() {
     _apiKey.dispose();
-    _appId.dispose();
-    _accessKey.dispose();
     _resourceId.dispose();
     _speaker.dispose();
+    _speechRate.dispose();
+    _loudnessRate.dispose();
+    _pitch.dispose();
+    _contextTexts.dispose();
     super.dispose();
   }
 
@@ -58,14 +65,19 @@ class _VoiceAnnouncementSettingsPageState
     }
     if (!mounted) return;
     if (cfg != null) {
-      _authMode = cfg.authMode;
       _apiKey.text = cfg.apiKey;
-      _appId.text = cfg.appId;
-      _accessKey.text = cfg.accessKey;
       _resourceId.text = cfg.resourceId.trim().isEmpty
           ? 'seed-tts-2.0'
           : cfg.resourceId;
       _speaker.text = cfg.speaker;
+      _speechRate.text = cfg.speechRate.toString();
+      _loudnessRate.text = cfg.loudnessRate.toString();
+      _pitch.text = cfg.pitch.toString();
+      _contextTexts.text = cfg.contextTexts.join('\n');
+      _markdownFilterEnabled = cfg.markdownFilterEnabled;
+      _latexEnabled = cfg.latexEnabled;
+      _filterParentheses = cfg.filterParentheses;
+      _explicitDialect = cfg.explicitDialect;
       _enabled = cfg.enabled;
     }
     setState(() => _didHydrate = true);
@@ -76,22 +88,40 @@ class _VoiceAnnouncementSettingsPageState
       _busy = true;
       _err = null;
     });
+    final speechRate = _parseIntInRange(_speechRate.text, -50, 100, '语速');
+    final loudnessRate = _parseIntInRange(_loudnessRate.text, -50, 100, '音量');
+    final pitch = _parseIntInRange(_pitch.text, -12, 12, '音调');
+    if (speechRate == null || loudnessRate == null || pitch == null) {
+      setState(() => _busy = false);
+      return;
+    }
+    if (_latexEnabled && !_markdownFilterEnabled) {
+      setState(() {
+        _err = '播报 LaTeX 公式需要同时开启 Markdown 解析过滤';
+        _busy = false;
+      });
+      return;
+    }
     final payload = DoubaoTtsConfig(
       enabled: _enabled,
-      authMode: _authMode,
+      authMode: DoubaoTtsAuthMode.apiKey,
       apiKey: _apiKey.text.trim(),
-      appId: _appId.text.trim(),
-      accessKey: _accessKey.text.trim(),
       resourceId: _resourceId.text.trim().isEmpty
           ? 'seed-tts-2.0'
           : _resourceId.text.trim(),
       speaker: _speaker.text.trim(),
+      speechRate: speechRate,
+      loudnessRate: loudnessRate,
+      markdownFilterEnabled: _markdownFilterEnabled,
+      latexEnabled: _latexEnabled,
+      filterParentheses: _filterParentheses,
+      explicitDialect: _explicitDialect,
+      pitch: pitch,
+      contextTexts: _contextTextsFromController(),
     );
     if (!payload.isConfigured) {
       setState(() {
-        _err = _authMode == DoubaoTtsAuthMode.apiKey
-            ? '请填写 API Key、Resource ID 与 Speaker'
-            : '请填写 APP ID、Access Token、Resource ID 与 Speaker';
+        _err = '请填写 API Key、Resource ID 与 Speaker';
         _busy = false;
       });
       return;
@@ -140,12 +170,17 @@ class _VoiceAnnouncementSettingsPageState
       await context.read<DoubaoTtsService>().clearConfig();
       if (!mounted) return;
       _enabled = false;
-      _authMode = DoubaoTtsAuthMode.appToken;
       _apiKey.clear();
-      _appId.clear();
-      _accessKey.clear();
       _resourceId.text = 'seed-tts-2.0';
       _speaker.clear();
+      _speechRate.text = '0';
+      _loudnessRate.text = '0';
+      _pitch.text = '0';
+      _contextTexts.clear();
+      _markdownFilterEnabled = false;
+      _latexEnabled = false;
+      _filterParentheses = true;
+      _explicitDialect = '';
       setState(() {});
     } catch (e) {
       if (mounted) setState(() => _err = '$e');
@@ -176,6 +211,55 @@ class _VoiceAnnouncementSettingsPageState
     }
   }
 
+  Future<void> _setVoiceAnnouncementEnabled(bool enabled) async {
+    final tts = context.read<DoubaoTtsService>();
+    if (tts.config == null) {
+      setState(() {
+        _enabled = enabled;
+        _err = null;
+      });
+      return;
+    }
+    if (tts.config?.isConfigured != true) {
+      setState(() => _err = '请先保存可用的语音播报配置');
+      return;
+    }
+    setState(() {
+      _busy = true;
+      _err = null;
+      _enabled = enabled;
+    });
+    try {
+      await tts.setEnabled(enabled);
+    } catch (e) {
+      if (!mounted) return;
+      final current = tts.config?.enabled ?? false;
+      setState(() {
+        _enabled = current;
+        _err = '$e';
+      });
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  int? _parseIntInRange(String raw, int min, int max, String label) {
+    final value = int.tryParse(raw.trim());
+    if (value == null || value < min || value > max) {
+      _err = '$label 取值范围为 $min 到 $max';
+      return null;
+    }
+    return value;
+  }
+
+  List<String> _contextTextsFromController() {
+    return _contextTexts.text
+        .split('\n')
+        .map((line) => line.trim())
+        .where((line) => line.isNotEmpty)
+        .toList(growable: false);
+  }
+
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -198,9 +282,7 @@ class _VoiceAnnouncementSettingsPageState
             value: _enabled,
             onChanged: _busy
                 ? null
-                : (v) {
-                    setState(() => _enabled = v);
-                  },
+                : (v) => unawaited(_setVoiceAnnouncementEnabled(v)),
             title: const Text('启用新消息语音播报'),
             contentPadding: EdgeInsets.zero,
           ),
@@ -244,63 +326,16 @@ class _VoiceAnnouncementSettingsPageState
           ],
           const Divider(height: 28),
           const SizedBox(height: 8),
-          DropdownButtonFormField<DoubaoTtsAuthMode>(
-            initialValue: _authMode,
+          TextField(
+            controller: _apiKey,
             decoration: const InputDecoration(
-              labelText: '鉴权方式',
+              labelText: '豆包 API Key',
               border: OutlineInputBorder(),
             ),
-            items: const [
-              DropdownMenuItem(
-                value: DoubaoTtsAuthMode.appToken,
-                child: Text('服务接口认证信息'),
-              ),
-              DropdownMenuItem(
-                value: DoubaoTtsAuthMode.apiKey,
-                child: Text('新版 API Key'),
-              ),
-            ],
-            onChanged: _busy
-                ? null
-                : (v) {
-                    if (v == null) return;
-                    setState(() => _authMode = v);
-                  },
+            obscureText: true,
+            enabled: !_busy,
+            autocorrect: false,
           ),
-          const SizedBox(height: 12),
-          if (_authMode == DoubaoTtsAuthMode.apiKey)
-            TextField(
-              controller: _apiKey,
-              decoration: const InputDecoration(
-                labelText: '豆包 API Key',
-                border: OutlineInputBorder(),
-              ),
-              obscureText: true,
-              enabled: !_busy,
-              autocorrect: false,
-            )
-          else ...[
-            TextField(
-              controller: _appId,
-              decoration: const InputDecoration(
-                labelText: 'APP ID',
-                border: OutlineInputBorder(),
-              ),
-              enabled: !_busy,
-              autocorrect: false,
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: _accessKey,
-              decoration: const InputDecoration(
-                labelText: 'Access Token',
-                border: OutlineInputBorder(),
-              ),
-              obscureText: true,
-              enabled: !_busy,
-              autocorrect: false,
-            ),
-          ],
           const SizedBox(height: 12),
           TextField(
             controller: _resourceId,
@@ -320,6 +355,103 @@ class _VoiceAnnouncementSettingsPageState
               hintText: '例如: zh_female_shuangkuaisisi_moon_bigtts',
               border: OutlineInputBorder(),
             ),
+            enabled: !_busy,
+            autocorrect: false,
+          ),
+          const Divider(height: 28),
+          const Text(
+            '合成参数',
+            style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
+          ),
+          const SizedBox(height: 12),
+          TextField(
+            controller: _speechRate,
+            decoration: const InputDecoration(
+              labelText: '语速',
+              helperText: '范围 -50 到 100，0 为默认',
+              border: OutlineInputBorder(),
+            ),
+            keyboardType: TextInputType.number,
+            enabled: !_busy,
+            autocorrect: false,
+          ),
+          const SizedBox(height: 12),
+          TextField(
+            controller: _loudnessRate,
+            decoration: const InputDecoration(
+              labelText: '音量',
+              helperText: '范围 -50 到 100，0 为默认',
+              border: OutlineInputBorder(),
+            ),
+            keyboardType: TextInputType.number,
+            enabled: !_busy,
+            autocorrect: false,
+          ),
+          const SizedBox(height: 12),
+          SwitchListTile(
+            value: _markdownFilterEnabled,
+            onChanged: _busy
+                ? null
+                : (v) => setState(() => _markdownFilterEnabled = v),
+            title: const Text('Markdown 解析过滤'),
+            subtitle: const Text('开启后会过滤 Markdown 标记，例如 **你好** 读作“你好”。'),
+            contentPadding: EdgeInsets.zero,
+          ),
+          SwitchListTile(
+            value: _latexEnabled,
+            onChanged: _busy ? null : (v) => setState(() => _latexEnabled = v),
+            title: const Text('播报 LaTeX 公式'),
+            subtitle: const Text('需要同时开启 Markdown 解析过滤。'),
+            contentPadding: EdgeInsets.zero,
+          ),
+          SwitchListTile(
+            value: _filterParentheses,
+            onChanged: _busy
+                ? null
+                : (v) => setState(() => _filterParentheses = v),
+            title: const Text('过滤括号内的部分'),
+            contentPadding: EdgeInsets.zero,
+          ),
+          const SizedBox(height: 12),
+          DropdownButtonFormField<String>(
+            key: ValueKey(_explicitDialect),
+            initialValue: _explicitDialect,
+            decoration: const InputDecoration(
+              labelText: '明确方言',
+              border: OutlineInputBorder(),
+            ),
+            items: const [
+              DropdownMenuItem(value: '', child: Text('不指定')),
+              DropdownMenuItem(value: 'dongbei', child: Text('东北话')),
+              DropdownMenuItem(value: 'shaanxi', child: Text('陕西话')),
+              DropdownMenuItem(value: 'sichuan', child: Text('四川话')),
+            ],
+            onChanged: _busy
+                ? null
+                : (v) => setState(() => _explicitDialect = v ?? ''),
+          ),
+          const SizedBox(height: 12),
+          TextField(
+            controller: _pitch,
+            decoration: const InputDecoration(
+              labelText: '音调取值',
+              helperText: '范围 -12 到 12，0 为默认',
+              border: OutlineInputBorder(),
+            ),
+            keyboardType: TextInputType.number,
+            enabled: !_busy,
+            autocorrect: false,
+          ),
+          const SizedBox(height: 12),
+          TextField(
+            controller: _contextTexts,
+            decoration: const InputDecoration(
+              labelText: '语音合成辅助信息',
+              helperText: '一行一条，例如：你可以说慢一点吗？',
+              border: OutlineInputBorder(),
+            ),
+            minLines: 3,
+            maxLines: 5,
             enabled: !_busy,
             autocorrect: false,
           ),

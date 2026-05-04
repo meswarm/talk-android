@@ -3,14 +3,13 @@ import 'package:matrix/matrix.dart';
 import 'package:provider/provider.dart';
 import '../providers/auth_provider.dart';
 import '../providers/chat_provider.dart';
-import '../providers/theme_provider.dart';
 import '../widgets/conversation_tile.dart';
 import '../widgets/matrix_authenticated_image.dart';
 import '../theme/app_colors.dart';
 import 'chat_page.dart';
 import 'profile_page.dart';
-import 'r2_settings_page.dart';
 import 'search_page.dart';
+import 'settings_page.dart';
 
 class ConversationListPage extends StatefulWidget {
   const ConversationListPage({super.key});
@@ -97,10 +96,7 @@ class _ConversationListPageState extends State<ConversationListPage> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('创建失败: $e'),
-            backgroundColor: Colors.red,
-          ),
+          SnackBar(content: Text('创建失败: $e'), backgroundColor: Colors.red),
         );
       }
     } finally {
@@ -114,10 +110,7 @@ class _ConversationListPageState extends State<ConversationListPage> {
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('接受邀请失败: $e'),
-          backgroundColor: Colors.red,
-        ),
+        SnackBar(content: Text('接受邀请失败: $e'), backgroundColor: Colors.red),
       );
     }
   }
@@ -128,10 +121,7 @@ class _ConversationListPageState extends State<ConversationListPage> {
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('拒绝邀请失败: $e'),
-          backgroundColor: Colors.red,
-        ),
+        SnackBar(content: Text('拒绝邀请失败: $e'), backgroundColor: Colors.red),
       );
     }
   }
@@ -176,7 +166,6 @@ class _ConversationListPageState extends State<ConversationListPage> {
   Widget build(BuildContext context) {
     final auth = context.watch<AuthProvider>();
     final chatProvider = context.watch<ChatProvider>();
-    final themeProvider = context.read<ThemeProvider>();
     final client = auth.matrixService.client;
     final userId = client.userID;
     final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -229,16 +218,6 @@ class _ConversationListPageState extends State<ConversationListPage> {
         ),
         actions: [
           IconButton(
-            icon: const Icon(Icons.cloud_outlined),
-            onPressed: () => Navigator.push(
-              context,
-              MaterialPageRoute<void>(
-                builder: (_) => const R2SettingsPage(),
-              ),
-            ),
-            tooltip: 'R2 设置',
-          ),
-          IconButton(
             icon: const Icon(Icons.search),
             onPressed: () => Navigator.push(
               context,
@@ -247,11 +226,12 @@ class _ConversationListPageState extends State<ConversationListPage> {
             tooltip: '搜索',
           ),
           IconButton(
-            icon: Icon(
-              isDark ? Icons.light_mode_outlined : Icons.dark_mode_outlined,
+            icon: const Icon(Icons.settings_outlined),
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const SettingsPage()),
             ),
-            onPressed: () => themeProvider.toggleTheme(),
-            tooltip: '切换主题',
+            tooltip: '设置',
           ),
         ],
       ),
@@ -287,10 +267,12 @@ class _ConversationListPageState extends State<ConversationListPage> {
                           ),
                         _InviteRow(
                           room: invites[i],
-                          displayName:
-                              chatProvider.getRoomDisplayName(invites[i]),
-                          preview:
-                              chatProvider.getLastMessagePreview(invites[i]),
+                          displayName: chatProvider.getRoomDisplayName(
+                            invites[i],
+                          ),
+                          preview: chatProvider.getLastMessagePreview(
+                            invites[i],
+                          ),
                           isDark: isDark,
                           onAccept: () => _acceptInvite(invites[i]),
                           onDecline: () => _declineInvite(invites[i]),
@@ -317,21 +299,21 @@ class _ConversationListPageState extends State<ConversationListPage> {
                         ),
                       ConversationTile(
                         room: joined[j],
-                        displayName:
-                            chatProvider.getRoomDisplayName(joined[j]),
-                        lastMessage:
-                            chatProvider.getLastMessagePreview(joined[j]),
+                        displayName: chatProvider.getRoomDisplayName(joined[j]),
+                        lastMessage: chatProvider.getLastMessagePreview(
+                          joined[j],
+                        ),
                         isPinned: chatProvider.isRoomPinned(joined[j].id),
                         onTap: () {
                           Navigator.push(
                             context,
                             MaterialPageRoute(
-                              builder: (context) =>
-                                  ChatPage(room: joined[j]),
+                              builder: (context) => ChatPage(room: joined[j]),
                             ),
                           );
                         },
-                        onLongPress: () => _showPinSheet(chatProvider, joined[j]),
+                        onLongPress: () =>
+                            _showPinSheet(chatProvider, joined[j]),
                       ),
                     ],
                   ],
@@ -423,10 +405,7 @@ class _InviteRow extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          RoomSquareAvatar(
-            room: room,
-            size: avatarSize,
-          ),
+          RoomSquareAvatar(room: room, size: avatarSize),
           SizedBox(width: gap),
           Expanded(
             child: Column(
@@ -464,10 +443,7 @@ class _InviteRow extends StatelessWidget {
                   runSpacing: 4,
                   alignment: WrapAlignment.end,
                   children: [
-                    TextButton(
-                      onPressed: onDecline,
-                      child: const Text('拒绝'),
-                    ),
+                    TextButton(onPressed: onDecline, child: const Text('拒绝')),
                     FilledButton.tonal(
                       onPressed: onAccept,
                       child: const Text('接受'),

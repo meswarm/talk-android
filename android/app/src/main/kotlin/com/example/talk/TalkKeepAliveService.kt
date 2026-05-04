@@ -56,7 +56,7 @@ class TalkKeepAliveService : Service() {
         )
 
         return NotificationCompat.Builder(this, CHANNEL_ID)
-            .setSmallIcon(android.R.drawable.ic_dialog_info)
+            .setSmallIcon(R.mipmap.ic_launcher)
             .setContentTitle("Talk 语音播报监听中")
             .setContentText("正在保持新消息语音播报监听")
             .setContentIntent(pendingIntent)

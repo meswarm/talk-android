@@ -66,6 +66,17 @@ class DoubaoTtsService extends ChangeNotifier {
       accessKey: config.accessKey.trim(),
       resourceId: config.resourceId.trim(),
       speaker: config.speaker.trim(),
+      speechRate: config.speechRate.clamp(-50, 100),
+      loudnessRate: config.loudnessRate.clamp(-50, 100),
+      markdownFilterEnabled: config.markdownFilterEnabled,
+      latexEnabled: config.latexEnabled,
+      filterParentheses: config.filterParentheses,
+      explicitDialect: config.explicitDialect.trim(),
+      pitch: config.pitch.clamp(-12, 12),
+      contextTexts: config.contextTexts
+          .map((s) => s.trim())
+          .where((s) => s.isNotEmpty)
+          .toList(growable: false),
     );
     await _store.save(normalized);
     _config = normalized;
@@ -151,18 +162,23 @@ class DoubaoTtsService extends ChangeNotifier {
         request.headers['X-Api-App-Id'] = config.appId;
         request.headers['X-Api-Access-Key'] = config.accessKey;
     }
+    final reqParams = <String, dynamic>{
+      'text': text,
+      'speaker': config.speaker,
+      'audio_params': {
+        'format': 'mp3',
+        'sample_rate': 24000,
+        'speech_rate': config.speechRate,
+        'loudness_rate': config.loudnessRate,
+      },
+    };
+    final additions = _buildAdditions(config);
+    if (additions.isNotEmpty) {
+      reqParams['additions'] = jsonEncode(additions);
+    }
     request.body = jsonEncode({
       'user': {'uid': 'talk-mobile'},
-      'req_params': {
-        'text': text,
-        'speaker': config.speaker,
-        'audio_params': {
-          'format': 'mp3',
-          'sample_rate': 24000,
-          'speech_rate': 0,
-          'loudness_rate': 0,
-        },
-      },
+      'req_params': reqParams,
     });
 
     final streamed = await _httpClient.send(request);
@@ -181,6 +197,7 @@ class DoubaoTtsService extends ChangeNotifier {
 
     final audioBuilder = BytesBuilder(copy: false);
     final extractor = _JsonObjectExtractor();
+    final nonAudioEvents = <String>[];
     await for (final piece in streamed.stream.transform(utf8.decoder)) {
       final objs = extractor.add(piece);
       for (final obj in objs) {
@@ -194,12 +211,18 @@ class DoubaoTtsService extends ChangeNotifier {
           // 结束事件，继续等待流自然结束即可。
           continue;
         }
+        if (code != null || obj['message'] != null) {
+          nonAudioEvents.add(jsonEncode(obj));
+        }
       }
     }
 
     final bytes = audioBuilder.takeBytes();
     if (bytes.isEmpty) {
-      throw StateError('语音合成未返回音频数据');
+      final detail = nonAudioEvents.isEmpty
+          ? ''
+          : '，原始响应摘要: ${nonAudioEvents.take(3).join(' ')}';
+      throw StateError('语音合成未返回音频数据$detail');
     }
     return bytes;
   }
@@ -228,6 +251,30 @@ class DoubaoTtsService extends ChangeNotifier {
     final now = DateTime.now().millisecondsSinceEpoch;
     final rand = Random().nextInt(1 << 32);
     return 'talk-$now-${rand.toRadixString(16)}';
+  }
+
+  static Map<String, dynamic> _buildAdditions(DoubaoTtsConfig config) {
+    final additions = <String, dynamic>{};
+    if (config.markdownFilterEnabled || config.latexEnabled) {
+      additions['disable_markdown_filter'] = true;
+    }
+    if (config.latexEnabled) {
+      additions['enable_latex_tn'] = true;
+      additions['latex_parser'] = 'v2';
+    }
+    if (!config.filterParentheses) {
+      additions['max_length_to_filter_parenthesis'] = 0;
+    }
+    if (config.explicitDialect.trim().isNotEmpty) {
+      additions['explicit_dialect'] = config.explicitDialect.trim();
+    }
+    if (config.pitch != 0) {
+      additions['post_process'] = {'pitch': config.pitch};
+    }
+    if (config.contextTexts.isNotEmpty) {
+      additions['context_texts'] = config.contextTexts;
+    }
+    return additions;
   }
 
   @override

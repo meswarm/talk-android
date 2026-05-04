@@ -87,6 +87,129 @@ void main() {
     expect(sentRequest!.headers.containsKey('X-Api-Key'), isFalse);
   });
 
+  test('speakNow sends configured synthesis parameters', () async {
+    http.BaseRequest? sentRequest;
+    final raw = base64Encode(Uint8List.fromList(const [7, 8, 9]));
+    final client = _FakeChunkedClient((request) {
+      sentRequest = request;
+      return [
+        '{"code":0,"message":"","data":"$raw"}',
+        '{"code":20000000,"message":"ok","data":null}',
+      ];
+    });
+    final svc = DoubaoTtsService(
+      store: _MemoryStore(),
+      httpClient: client,
+      customAudioPlayer: (_) async {},
+    );
+    await svc.saveConfig(
+      const DoubaoTtsConfig(
+        enabled: true,
+        apiKey: 'k',
+        resourceId: 'seed-tts-2.0',
+        speaker: 'spk',
+        speechRate: 20,
+        loudnessRate: -10,
+        markdownFilterEnabled: true,
+        latexEnabled: true,
+        filterParentheses: false,
+        explicitDialect: 'dongbei',
+        pitch: -2,
+        contextTexts: ['你可以说慢一点吗？'],
+      ),
+    );
+
+    await svc.speakNow('测试');
+
+    final body =
+        jsonDecode((sentRequest! as http.Request).body) as Map<String, dynamic>;
+    final reqParams = body['req_params'] as Map<String, dynamic>;
+    final audioParams = reqParams['audio_params'] as Map<String, dynamic>;
+    final additions =
+        jsonDecode(reqParams['additions'] as String) as Map<String, dynamic>;
+    expect(audioParams['speech_rate'], 20);
+    expect(audioParams['loudness_rate'], -10);
+    expect(additions['disable_markdown_filter'], isTrue);
+    expect(additions['enable_latex_tn'], isTrue);
+    expect(additions['latex_parser'], 'v2');
+    expect(additions['max_length_to_filter_parenthesis'], 0);
+    expect(additions['explicit_dialect'], 'dongbei');
+    expect(additions['post_process'], {'pitch': -2});
+    expect(additions['context_texts'], ['你可以说慢一点吗？']);
+  });
+
+  test(
+    'speakNow omits default additions to keep baseline request compatible',
+    () async {
+      http.BaseRequest? sentRequest;
+      final raw = base64Encode(Uint8List.fromList(const [7, 8, 9]));
+      final client = _FakeChunkedClient((request) {
+        sentRequest = request;
+        return [
+          '{"code":0,"message":"","data":"$raw"}',
+          '{"code":20000000,"message":"ok","data":null}',
+        ];
+      });
+      final svc = DoubaoTtsService(
+        store: _MemoryStore(),
+        httpClient: client,
+        customAudioPlayer: (_) async {},
+      );
+      await svc.saveConfig(
+        const DoubaoTtsConfig(
+          enabled: true,
+          apiKey: 'k',
+          resourceId: 'seed-tts-2.0',
+          speaker: 'spk',
+        ),
+      );
+
+      await svc.speakNow('测试');
+
+      final body =
+          jsonDecode((sentRequest! as http.Request).body)
+              as Map<String, dynamic>;
+      final reqParams = body['req_params'] as Map<String, dynamic>;
+      expect(reqParams.containsKey('additions'), isFalse);
+    },
+  );
+
+  test(
+    'speakNow reports non-audio stream event when synthesis returns no data',
+    () async {
+      final client = _FakeChunkedClient((_) {
+        return const [
+          '{"code":45000001,"message":"bad additions","data":null}',
+          '{"code":20000000,"message":"ok","data":null}',
+        ];
+      });
+      final svc = DoubaoTtsService(
+        store: _MemoryStore(),
+        httpClient: client,
+        customAudioPlayer: (_) async {},
+      );
+      await svc.saveConfig(
+        const DoubaoTtsConfig(
+          enabled: true,
+          apiKey: 'k',
+          resourceId: 'seed-tts-2.0',
+          speaker: 'spk',
+        ),
+      );
+
+      expect(
+        () => svc.speakNow('测试'),
+        throwsA(
+          isA<StateError>().having(
+            (e) => e.message,
+            'message',
+            contains('bad additions'),
+          ),
+        ),
+      );
+    },
+  );
+
   test('enqueueNewMessageAnnouncement skips when disabled', () async {
     final store = _MemoryStore();
     var requests = 0;
