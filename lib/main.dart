@@ -1,8 +1,11 @@
 import 'dart:async';
 
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'media/media_preview_sizes.dart';
+import 'push/fcm_push_payload.dart';
+import 'push/fcm_push_service.dart';
 import 'services/local_storage.dart';
 import 'services/matrix_service.dart';
 import 'services/notification_service.dart';
@@ -25,6 +28,11 @@ final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  try {
+    await Firebase.initializeApp();
+  } catch (_) {
+    // The push settings page will show the unavailable state.
+  }
   await NotificationService().init();
   final initialThemeMode = await LocalStorage().loadThemeMode();
   final initialTextScaleStep = await LocalStorage().loadTextScaleStep();
@@ -71,6 +79,7 @@ class _TalkAppState extends State<TalkApp> with WidgetsBindingObserver {
   final _r2Service = R2Service();
   final _doubaoTtsService = DoubaoTtsService();
   final _deepSeekQuickExtractService = DeepSeekQuickExtractService();
+  late final FcmPushService _fcmPushService;
   late final AuthProvider _authProvider;
   late final ChatProvider _chatProvider;
 
@@ -89,6 +98,11 @@ class _TalkAppState extends State<TalkApp> with WidgetsBindingObserver {
     // 注册通知点击回调
     _notificationService.onNotificationTap = _onNotificationTap;
     _notificationService.voiceAnnouncementService = _doubaoTtsService;
+    _fcmPushService = FcmPushService(
+      showLocalNotification: _showFcmLocalNotification,
+      onOpenRoom: _onNotificationTap,
+    );
+    unawaited(_fcmPushService.bootstrap());
   }
 
   void _onAuthChanged() {
@@ -108,6 +122,16 @@ class _TalkAppState extends State<TalkApp> with WidgetsBindingObserver {
     );
   }
 
+  void _showFcmLocalNotification(FcmPushPayload payload) {
+    unawaited(
+      _notificationService.showPushNotification(
+        title: payload.title,
+        body: payload.body,
+        roomId: payload.roomId,
+      ),
+    );
+  }
+
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
@@ -115,6 +139,7 @@ class _TalkAppState extends State<TalkApp> with WidgetsBindingObserver {
     _notificationService.dispose();
     _doubaoTtsService.dispose();
     _deepSeekQuickExtractService.dispose();
+    _fcmPushService.dispose();
     _matrixService.dispose();
     super.dispose();
   }
@@ -147,6 +172,7 @@ class _TalkAppState extends State<TalkApp> with WidgetsBindingObserver {
         ChangeNotifierProvider.value(value: _r2Service),
         ChangeNotifierProvider.value(value: _doubaoTtsService),
         ChangeNotifierProvider.value(value: _deepSeekQuickExtractService),
+        ChangeNotifierProvider.value(value: _fcmPushService),
       ],
       child: Consumer2<ThemeProvider, TextScaleProvider>(
         builder: (context, themeProvider, textScale, _) {
