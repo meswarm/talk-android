@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'keep_alive/keep_alive_controller.dart';
 import 'media/media_preview_sizes.dart';
 import 'services/local_storage.dart';
 import 'services/matrix_service.dart';
@@ -71,6 +72,7 @@ class _TalkAppState extends State<TalkApp> with WidgetsBindingObserver {
   final _r2Service = R2Service();
   final _doubaoTtsService = DoubaoTtsService();
   final _deepSeekQuickExtractService = DeepSeekQuickExtractService();
+  final _keepAliveController = KeepAliveController();
   late final AuthProvider _authProvider;
   late final ChatProvider _chatProvider;
 
@@ -81,6 +83,7 @@ class _TalkAppState extends State<TalkApp> with WidgetsBindingObserver {
     unawaited(_r2Service.bootstrap());
     unawaited(_doubaoTtsService.bootstrap());
     unawaited(_deepSeekQuickExtractService.bootstrap());
+    unawaited(_keepAliveController.bootstrap());
     _authProvider = AuthProvider(matrixService: _matrixService);
     _chatProvider = ChatProvider(matrixService: _matrixService);
     _authProvider.addListener(_onAuthChanged);
@@ -115,6 +118,7 @@ class _TalkAppState extends State<TalkApp> with WidgetsBindingObserver {
     _notificationService.dispose();
     _doubaoTtsService.dispose();
     _deepSeekQuickExtractService.dispose();
+    _keepAliveController.dispose();
     _matrixService.dispose();
     super.dispose();
   }
@@ -147,6 +151,7 @@ class _TalkAppState extends State<TalkApp> with WidgetsBindingObserver {
         ChangeNotifierProvider.value(value: _r2Service),
         ChangeNotifierProvider.value(value: _doubaoTtsService),
         ChangeNotifierProvider.value(value: _deepSeekQuickExtractService),
+        ChangeNotifierProvider.value(value: _keepAliveController),
       ],
       child: Consumer2<ThemeProvider, TextScaleProvider>(
         builder: (context, themeProvider, textScale, _) {
