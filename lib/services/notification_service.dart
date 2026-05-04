@@ -118,6 +118,18 @@ class NotificationService {
     );
   }
 
+  Future<void> showPushNotification({
+    required String title,
+    required String body,
+    String? roomId,
+  }) {
+    return _showNotification(
+      roomId: roomId ?? 'fcm-${DateTime.now().millisecondsSinceEpoch}',
+      title: title,
+      body: body,
+    );
+  }
+
   void _onNotificationTap(NotificationResponse response) {
     final roomId = response.payload;
     if (roomId != null && onNotificationTap != null) {
