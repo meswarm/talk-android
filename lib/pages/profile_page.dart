@@ -15,6 +15,7 @@ import '../theme/app_colors.dart';
 import '../widgets/matrix_authenticated_image.dart';
 import 'media_preview_size_settings_page.dart';
 import 'deepseek_settings_page.dart';
+import 'push_notification_settings_page.dart';
 import 'voice_announcement_settings_page.dart';
 
 class ProfilePage extends StatefulWidget {
@@ -243,6 +244,12 @@ class _ProfilePageState extends State<ProfilePage> {
     );
   }
 
+  void _openPushNotificationSettings() {
+    Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => const PushNotificationSettingsPage()),
+    );
+  }
+
   void _openDeepSeekSettings() {
     Navigator.of(
       context,
@@ -419,6 +426,15 @@ class _ProfilePageState extends State<ProfilePage> {
                       label: '语音播报',
                       value: '新消息到达时语音提醒',
                       onTap: _saving ? null : _openVoiceAnnouncementSettings,
+                    ),
+                    _buildDivider(isDark),
+
+                    _buildProfileItem(
+                      isDark: isDark,
+                      icon: Icons.notifications_active_outlined,
+                      label: 'FCM 推送通知',
+                      value: '系统回收后接收通知',
+                      onTap: _saving ? null : _openPushNotificationSettings,
                     ),
 
                     const SizedBox(height: 48),
