@@ -15,6 +15,8 @@
 - [全屏视频播放器](superpowers/specs/2026-04-20-fullscreen-video-player-design.md)
 - [房间自动折叠](superpowers/specs/2026-04-21-room-auto-collapse-design.md)
 - [语音播报 MVP](superpowers/specs/2026-04-27-voice-announcement-mvp-design.md)
+- [Android 常驻语音播报](superpowers/specs/2026-05-04-android-keep-alive-voice-announcement-design.md)
+- [FCM 推送通知 MVP](superpowers/specs/2026-05-04-fcm-push-notification-mvp-design.md)
 
 ## 上传前检查
 
@@ -25,3 +27,10 @@ flutter analyze
 ```
 
 敏感信息建议额外用 `rg` 扫描 `api_key`、`secret`、`token`、`password`、`AKIA`、`ghp_` 等关键词。
+
+另外检查以下内容是否应保留在仓库外：
+
+- Firebase 配置文件：`google-services.json`、`GoogleService-Info.plist`
+- 签名文件：`*.jks`、`*.keystore`
+- 构建产物：`build/`、`*.apk`、`*.aab`
+- 本地导出的第三方参考 PDF 和 API 文档快照

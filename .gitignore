@@ -65,3 +65,5 @@ app.*.map.json
 
 # Local reference documents not intended for repository upload
 /*.pdf
+/端到端实时语音大模型API接入文档.md
+/豆包语音_端到端Android SDK 接口文档.md
