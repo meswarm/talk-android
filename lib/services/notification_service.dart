@@ -1,7 +1,59 @@
 import 'dart:async';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:matrix/matrix.dart';
+import '../realtime_secretary/realtime_secretary_matrix_context.dart';
+import '../realtime_secretary/realtime_secretary_models.dart';
+import '../realtime_secretary/realtime_secretary_service.dart';
 import '../tts/doubao_tts_service.dart';
+
+class NotificationMessageCandidate {
+  final String eventType;
+  final String? messageType;
+  final String? senderId;
+  final String? currentUserId;
+  final String roomId;
+  final String? activeRoomId;
+  final String body;
+
+  const NotificationMessageCandidate({
+    required this.eventType,
+    required this.messageType,
+    required this.senderId,
+    required this.currentUserId,
+    required this.roomId,
+    required this.activeRoomId,
+    required this.body,
+  });
+
+  bool get shouldNotifyOrStartSecretary {
+    if (eventType != EventTypes.Message) return false;
+    if (messageType != MessageTypes.Text) return false;
+    if (senderId == currentUserId) return false;
+    if (activeRoomId == roomId) return false;
+    if (body.trim().isEmpty) return false;
+    return true;
+  }
+
+  NotificationMessageCandidate copyWith({
+    String? eventType,
+    String? messageType,
+    String? senderId,
+    String? currentUserId,
+    String? roomId,
+    String? activeRoomId,
+    String? body,
+  }) {
+    return NotificationMessageCandidate(
+      eventType: eventType ?? this.eventType,
+      messageType: messageType ?? this.messageType,
+      senderId: senderId ?? this.senderId,
+      currentUserId: currentUserId ?? this.currentUserId,
+      roomId: roomId ?? this.roomId,
+      activeRoomId: activeRoomId ?? this.activeRoomId,
+      body: body ?? this.body,
+    );
+  }
+}
 
 /// 通知服务 — 监听 Matrix 新消息并弹出系统通知
 class NotificationService {
@@ -14,6 +66,7 @@ class NotificationService {
 
   StreamSubscription? _syncSub;
   DoubaoTtsService? _voiceAnnouncementService;
+  RealtimeSecretaryService? _realtimeSecretaryService;
 
   /// 当前正在查看的房间 ID（在此房间内不弹通知）
   String? activeRoomId;
@@ -23,6 +76,10 @@ class NotificationService {
 
   set voiceAnnouncementService(DoubaoTtsService? service) {
     _voiceAnnouncementService = service;
+  }
+
+  set realtimeSecretaryService(RealtimeSecretaryService? service) {
+    _realtimeSecretaryService = service;
   }
 
   /// 初始化通知插件
@@ -50,18 +107,18 @@ class NotificationService {
     _syncSub?.cancel();
 
     _syncSub = client.onTimelineEvent.stream.listen((event) {
-      // 跳过非消息类型
-      if (event.type != EventTypes.Message) return;
-
-      // 跳过自己发送的消息
-      if (event.senderId == client.userID) return;
-
-      // 当前正在聊天的房间不弹通知
       final roomId = event.roomId ?? '';
-      if (activeRoomId == roomId) return;
-
       final body = event.body;
-      if (body.isEmpty) return;
+      final candidate = NotificationMessageCandidate(
+        eventType: event.type,
+        messageType: event.messageType,
+        senderId: event.senderId,
+        currentUserId: client.userID,
+        roomId: roomId,
+        activeRoomId: activeRoomId,
+        body: body,
+      );
+      if (!candidate.shouldNotifyOrStartSecretary) return;
 
       // 获取发送者显示名和房间名
       final room = client.getRoomById(roomId);
@@ -73,9 +130,31 @@ class NotificationService {
         title: roomName,
         body: '$senderName: $body',
       );
+      final secretary = _realtimeSecretaryService;
+      if (secretary?.enabled == true) {
+        if (room != null) {
+          unawaited(
+            secretary!.tryStartForNewTextMessage(
+              roomId: roomId,
+              roomName: roomName,
+              triggerMessage: SecretaryTextBubble(
+                senderName: senderName,
+                body: body,
+              ),
+              contextLoader: () => loadRecentRoomTextBubbles(
+                room: room,
+                limit: secretary.config?.contextMessageCount ?? 3,
+              ),
+            ),
+          );
+        }
+        return;
+      }
       unawaited(
         _voiceAnnouncementService?.enqueueNewMessageAnnouncement(
           senderName: senderName,
+          roomName: roomName,
+          messageBody: body,
         ),
       );
     });

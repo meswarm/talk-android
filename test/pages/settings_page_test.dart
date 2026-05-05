@@ -8,6 +8,9 @@ import 'package:talk/providers/bubble_max_height_provider.dart';
 import 'package:talk/providers/media_preview_size_provider.dart';
 import 'package:talk/providers/text_scale_provider.dart';
 import 'package:talk/providers/theme_provider.dart';
+import 'package:talk/realtime_secretary/realtime_secretary_config_store.dart';
+import 'package:talk/realtime_secretary/realtime_secretary_models.dart';
+import 'package:talk/realtime_secretary/realtime_secretary_service.dart';
 import 'package:talk/services/local_storage.dart';
 
 void main() {
@@ -35,6 +38,12 @@ void main() {
               tableSizes: MediaPreviewSizes.tableDefaults,
             ),
           ),
+          ChangeNotifierProvider(
+            create: (_) => RealtimeSecretaryService(
+              store: _MemorySecretaryStore(),
+              bridge: _FakeSecretaryBridge(),
+            ),
+          ),
         ],
         child: const MaterialApp(home: SettingsPage()),
       ),
@@ -48,6 +57,12 @@ void main() {
     expect(find.text('图片与上传'), findsOneWidget);
     expect(find.text('AI 与快捷操作'), findsOneWidget);
     expect(find.text('语音播报'), findsOneWidget);
+    expect(find.text('实时语音秘书'), findsOneWidget);
+    await tester.scrollUntilVisible(
+      find.text('推送通知'),
+      80,
+      scrollable: find.byType(Scrollable).first,
+    );
     expect(find.text('推送通知'), findsOneWidget);
     expect(find.byType(Slider), findsNothing);
     expect(find.byType(Switch), findsNothing);
@@ -74,4 +89,49 @@ void main() {
     expect(find.text('夜间'), findsOneWidget);
     expect(find.text('界面字体'), findsOneWidget);
   });
+}
+
+class _MemorySecretaryStore implements RealtimeSecretaryConfigStore {
+  RealtimeSecretaryConfig? config;
+
+  @override
+  Future<void> clear() async {
+    config = null;
+  }
+
+  @override
+  Future<RealtimeSecretaryConfig?> load() async => config;
+
+  @override
+  Future<void> save(RealtimeSecretaryConfig config) async {
+    this.config = config;
+  }
+}
+
+class _FakeSecretaryBridge implements RealtimeSecretaryBridge {
+  @override
+  Future<bool> isServiceRunning() async => false;
+
+  @override
+  Future<void> sendContextTextQuery(String text) async {}
+
+  @override
+  Future<void> startForegroundService(RealtimeSecretaryConfig config) async {}
+
+  @override
+  Future<void> testConfig(RealtimeSecretaryConfig config) async {}
+
+  @override
+  Future<void> startWakeSession({
+    required RealtimeSecretaryConfig config,
+    required String roomId,
+    required String openingAnnouncement,
+    String? initialContextText,
+  }) async {}
+
+  @override
+  Future<void> stopForegroundService() async {}
+
+  @override
+  Future<void> stopSession() async {}
 }

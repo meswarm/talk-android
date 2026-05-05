@@ -9,11 +9,16 @@ import 'package:http/http.dart' as http;
 
 import 'doubao_tts_config_store.dart';
 import 'doubao_tts_models.dart';
+import 'realtime_voice_announcement_bridge.dart';
 
 const _doubaoTtsEndpoint =
     'https://openspeech.bytedance.com/api/v3/tts/unidirectional';
+const _qwenChatCompletionsEndpoint =
+    'https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions';
 
 typedef DoubaoAudioPlayer = Future<void> Function(Uint8List bytes);
+typedef RealtimeAnnouncementPlayer =
+    Future<void> Function(DoubaoTtsConfig config, String text);
 
 class DoubaoTtsService extends ChangeNotifier {
   DoubaoTtsService({
@@ -21,15 +26,29 @@ class DoubaoTtsService extends ChangeNotifier {
     http.Client? httpClient,
     AudioPlayer? player,
     DoubaoAudioPlayer? customAudioPlayer,
+    RealtimeAnnouncementPlayer? realtimeAnnouncementPlayer,
+    RealtimeVoiceAnnouncementBridge? realtimeBridge,
+    Future<void> Function()? disableRealtimeSecretary,
   }) : _store = store ?? SecureDoubaoTtsConfigStore(),
        _httpClient = httpClient ?? http.Client(),
        _player = player,
-       _customAudioPlayer = customAudioPlayer;
+       _customAudioPlayer = customAudioPlayer,
+       _realtimeAnnouncementPlayer =
+           realtimeAnnouncementPlayer ??
+           ((config, text) {
+             final bridge =
+                 realtimeBridge ??
+                 const MethodChannelRealtimeVoiceAnnouncementBridge();
+             return bridge.speakTextQuery(config: config, text: text);
+           }),
+       _disableRealtimeSecretary = disableRealtimeSecretary;
 
   final DoubaoTtsConfigStore _store;
   final http.Client _httpClient;
   AudioPlayer? _player;
   final DoubaoAudioPlayer? _customAudioPlayer;
+  final RealtimeAnnouncementPlayer _realtimeAnnouncementPlayer;
+  final Future<void> Function()? _disableRealtimeSecretary;
 
   DoubaoTtsPhase _phase = DoubaoTtsPhase.loading;
   DoubaoTtsConfig? _config;
@@ -58,6 +77,9 @@ class DoubaoTtsService extends ChangeNotifier {
   }
 
   Future<void> saveConfig(DoubaoTtsConfig config) async {
+    if (config.enabled) {
+      await _disableRealtimeSecretary?.call();
+    }
     final normalized = DoubaoTtsConfig(
       enabled: config.enabled,
       authMode: config.authMode,
@@ -77,6 +99,36 @@ class DoubaoTtsService extends ChangeNotifier {
           .map((s) => s.trim())
           .where((s) => s.isNotEmpty)
           .toList(growable: false),
+      announceMessageContent: config.announceMessageContent,
+      contentEngine: config.contentEngine,
+      qwenApiKey: config.qwenApiKey.trim(),
+      qwenModel: config.qwenModel.trim().isEmpty
+          ? defaultVoiceAnnouncementSummaryModel
+          : config.qwenModel.trim(),
+      qwenSystemPrompt: config.qwenSystemPrompt.trim().isEmpty
+          ? defaultVoiceAnnouncementSummarySystemPrompt
+          : config.qwenSystemPrompt.trim(),
+      realtimeAppId: config.realtimeAppId.trim(),
+      realtimeAppKey: config.realtimeAppKey.trim(),
+      realtimeAccessToken: config.realtimeAccessToken.trim(),
+      realtimeResourceId: config.realtimeResourceId.trim().isEmpty
+          ? defaultVoiceAnnouncementRealtimeResourceId
+          : config.realtimeResourceId.trim(),
+      realtimeModel: config.realtimeModel.trim().isEmpty
+          ? defaultVoiceAnnouncementRealtimeModel
+          : config.realtimeModel.trim(),
+      realtimeSpeaker: config.realtimeSpeaker.trim().isEmpty
+          ? defaultVoiceAnnouncementRealtimeSpeaker
+          : config.realtimeSpeaker.trim(),
+      realtimeSystemRole: config.realtimeSystemRole.trim().isEmpty
+          ? defaultVoiceAnnouncementRealtimeSystemRole
+          : config.realtimeSystemRole.trim(),
+      realtimeSpeakingStyle: config.realtimeSpeakingStyle.trim().isEmpty
+          ? defaultVoiceAnnouncementRealtimeSpeakingStyle
+          : config.realtimeSpeakingStyle.trim(),
+      realtimeSummaryPrompt: config.realtimeSummaryPrompt.trim().isEmpty
+          ? defaultVoiceAnnouncementRealtimeSummaryPrompt
+          : config.realtimeSummaryPrompt.trim(),
     );
     await _store.save(normalized);
     _config = normalized;
@@ -99,16 +151,28 @@ class DoubaoTtsService extends ChangeNotifier {
     notifyListeners();
   }
 
-  String buildNewMessageAnnouncement(String senderName) {
+  String buildNewMessageAnnouncement(String senderName, {String? summary}) {
     final s = senderName.trim().isEmpty ? '未知联系人' : senderName.trim();
+    final cleanSummary = summary?.trim();
+    if (cleanSummary != null && cleanSummary.isNotEmpty) {
+      return '$s 发来消息：$cleanSummary';
+    }
     return '你有一条来自$s的新消息';
   }
 
   Future<void> enqueueNewMessageAnnouncement({
     required String senderName,
+    String roomName = '',
+    String messageBody = '',
   }) async {
     _announcementChain = _announcementChain
-        .then((_) => _speakIfEnabled(buildNewMessageAnnouncement(senderName)))
+        .then(
+          (_) => _speakNewMessageIfEnabled(
+            senderName: senderName,
+            roomName: roomName,
+            messageBody: messageBody,
+          ),
+        )
         .catchError((_) {});
     return _announcementChain;
   }
@@ -132,6 +196,208 @@ class DoubaoTtsService extends ChangeNotifier {
     } catch (_) {
       // 语音播报失败不应影响消息通知流程。
     }
+  }
+
+  Future<void> _speakNewMessageIfEnabled({
+    required String senderName,
+    required String roomName,
+    required String messageBody,
+  }) async {
+    final cfg = _config;
+    if (cfg == null || !cfg.enabled || !cfg.isConfigured) return;
+    var announcement = buildNewMessageAnnouncement(senderName);
+    if (cfg.announceMessageContent && messageBody.trim().isNotEmpty) {
+      if (cfg.contentEngine == VoiceAnnouncementContentEngine.realtimeDialog &&
+          cfg.hasRealtimeDialogConfig) {
+        try {
+          await _realtimeAnnouncementPlayer(
+            cfg,
+            buildRealtimeAnnouncementPrompt(
+              senderName: senderName,
+              roomName: roomName,
+              messageBody: messageBody,
+              summaryPrompt: cfg.realtimeSummaryPrompt,
+            ),
+          );
+          return;
+        } catch (_) {
+          // 实时语音大模型失败时继续走 Qwen + TTS 或普通提醒兜底。
+        }
+      }
+      final summary = await _trySummarizeMessageForAnnouncement(
+        senderName: senderName,
+        roomName: roomName,
+        messageBody: messageBody,
+        config: cfg,
+      );
+      if (summary != null && summary.isNotEmpty) {
+        announcement = buildNewMessageAnnouncement(
+          senderName,
+          summary: summary,
+        );
+      }
+    }
+    await _speakIfEnabled(announcement);
+  }
+
+  Future<String?> _trySummarizeMessageForAnnouncement({
+    required String senderName,
+    required String roomName,
+    required String messageBody,
+    required DoubaoTtsConfig config,
+  }) async {
+    if (config.qwenApiKey.trim().isEmpty || messageBody.trim().isEmpty) {
+      return null;
+    }
+    try {
+      return await summarizeMessageForAnnouncement(
+        senderName: senderName,
+        roomName: roomName,
+        messageBody: messageBody,
+        config: config,
+      );
+    } catch (_) {
+      return null;
+    }
+  }
+
+  String buildRealtimeAnnouncementPrompt({
+    required String senderName,
+    required String roomName,
+    required String messageBody,
+    String summaryPrompt = defaultVoiceAnnouncementRealtimeSummaryPrompt,
+  }) {
+    final sender = senderName.trim().isEmpty ? '未知联系人' : senderName.trim();
+    return [
+      summaryPrompt.trim().isEmpty
+          ? defaultVoiceAnnouncementRealtimeSummaryPrompt
+          : summaryPrompt.trim(),
+      if (roomName.trim().isNotEmpty) '房间：${roomName.trim()}',
+      '发送者：$sender',
+      '消息内容：',
+      messageBody.trim(),
+    ].join('\n');
+  }
+
+  Future<String> summarizeMessageForAnnouncement({
+    required String senderName,
+    required String roomName,
+    required String messageBody,
+    DoubaoTtsConfig? config,
+  }) async {
+    final cfg = config ?? _requireConfig();
+    if (cfg.qwenApiKey.trim().isEmpty) {
+      throw StateError('请先填写 Qwen API Key');
+    }
+    final request = http.Request(
+      'POST',
+      Uri.parse(_qwenChatCompletionsEndpoint),
+    );
+    request.headers.addAll({
+      'Content-Type': 'application/json',
+      'Authorization': 'Bearer ${cfg.qwenApiKey.trim()}',
+    });
+    request.body = jsonEncode({
+      'model': cfg.qwenModel.trim().isEmpty
+          ? defaultVoiceAnnouncementSummaryModel
+          : cfg.qwenModel.trim(),
+      'messages': [
+        {'role': 'system', 'content': cfg.qwenSystemPrompt.trim()},
+        {
+          'role': 'user',
+          'content': [
+            if (roomName.trim().isNotEmpty) '房间：${roomName.trim()}',
+            '发送者：${senderName.trim().isEmpty ? '未知联系人' : senderName.trim()}',
+            '消息内容：',
+            messageBody.trim(),
+          ].join('\n'),
+        },
+      ],
+      'temperature': 0.2,
+    });
+
+    final streamed = await _httpClient.send(request);
+    final body = await streamed.stream.bytesToString();
+    if (streamed.statusCode < 200 || streamed.statusCode >= 300) {
+      throw StateError('Qwen 消息整理失败: ${streamed.statusCode} $body');
+    }
+    final decoded = jsonDecode(body);
+    final choices = decoded is Map ? decoded['choices'] : null;
+    final first = choices is List && choices.isNotEmpty ? choices.first : null;
+    final message = first is Map ? first['message'] : null;
+    final content = message is Map ? message['content'] : null;
+    final summary = content?.toString().trim() ?? '';
+    if (summary.isEmpty) {
+      throw StateError('Qwen 消息整理未返回文本');
+    }
+    return _normalizeAnnouncementSummary(
+      summary,
+      senderName: senderName,
+      roomName: roomName,
+    );
+  }
+
+  static String _normalizeAnnouncementSummary(
+    String raw, {
+    String senderName = '',
+    String roomName = '',
+  }) {
+    var collapsed = raw
+        .replaceAll(RegExp(r'[#*_`>\[\]]'), '')
+        .replaceAll(RegExp(r'\s+'), ' ')
+        .trim();
+    collapsed = _stripDuplicatedNotificationPrefix(
+      collapsed,
+      senderName: senderName,
+      roomName: roomName,
+    );
+    if (collapsed.length <= 120) return collapsed;
+    return '${collapsed.substring(0, 120)}。';
+  }
+
+  static String _stripDuplicatedNotificationPrefix(
+    String text, {
+    required String senderName,
+    required String roomName,
+  }) {
+    var current = text.trim();
+    final names =
+        {senderName.trim(), roomName.trim()}.where((s) => s.isNotEmpty).toList()
+          ..sort((a, b) => b.length.compareTo(a.length));
+
+    for (var i = 0; i < 3; i += 1) {
+      final before = current;
+      for (final name in names) {
+        final escaped = RegExp.escape(name);
+        current = _stripPrefixIfLeavesContent(
+          current,
+          RegExp(
+            '^$escaped\\s*(?:发来|来了|发送了|发了)?\\s*(?:一条)?\\s*(?:新)?消息\\s*[:：,，。\\-—]*\\s*',
+          ),
+        );
+        current = _stripPrefixIfLeavesContent(
+          current,
+          RegExp(
+            '^来自\\s*$escaped\\s*的?\\s*(?:一条)?\\s*(?:新)?消息\\s*[:：,，。\\-—]*\\s*',
+          ),
+        );
+        current = _stripPrefixIfLeavesContent(
+          current,
+          RegExp('^$escaped\\s*[:：,，。\\-—]+\\s*'),
+        );
+      }
+      current = _stripPrefixIfLeavesContent(
+        current,
+        RegExp('^(?:一条)?\\s*(?:新)?消息\\s*[:：,，。\\-—]+\\s*'),
+      );
+      if (current == before) break;
+    }
+    return current.trim();
+  }
+
+  static String _stripPrefixIfLeavesContent(String text, RegExp prefix) {
+    final next = text.replaceFirst(prefix, '').trim();
+    return next.isEmpty ? text : next;
   }
 
   DoubaoTtsConfig _requireConfig() {

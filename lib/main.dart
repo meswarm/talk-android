@@ -18,6 +18,7 @@ import 'providers/text_scale_provider.dart';
 import 'providers/theme_provider.dart';
 import 'quick_extract/deepseek_quick_extract_service.dart';
 import 'r2/r2_service.dart';
+import 'realtime_secretary/realtime_secretary_service.dart';
 import 'tts/doubao_tts_service.dart';
 import 'theme/app_theme.dart';
 import 'pages/login_page.dart';
@@ -78,7 +79,8 @@ class _TalkAppState extends State<TalkApp> with WidgetsBindingObserver {
   final _matrixService = MatrixService();
   final _notificationService = NotificationService();
   final _r2Service = R2Service();
-  final _doubaoTtsService = DoubaoTtsService();
+  late final DoubaoTtsService _doubaoTtsService;
+  late final RealtimeSecretaryService _realtimeSecretaryService;
   final _deepSeekQuickExtractService = DeepSeekQuickExtractService();
   late final FcmPushService _fcmPushService;
   final _keepAliveController = KeepAliveController();
@@ -89,8 +91,23 @@ class _TalkAppState extends State<TalkApp> with WidgetsBindingObserver {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    _doubaoTtsService = DoubaoTtsService(
+      disableRealtimeSecretary: () async {
+        if (_realtimeSecretaryService.enabled) {
+          await _realtimeSecretaryService.setEnabled(false);
+        }
+      },
+    );
+    _realtimeSecretaryService = RealtimeSecretaryService(
+      disableVoiceAnnouncement: () async {
+        if (_doubaoTtsService.enabled) {
+          await _doubaoTtsService.setEnabled(false);
+        }
+      },
+    );
     unawaited(_r2Service.bootstrap());
     unawaited(_doubaoTtsService.bootstrap());
+    unawaited(_realtimeSecretaryService.bootstrap());
     unawaited(_deepSeekQuickExtractService.bootstrap());
     unawaited(_keepAliveController.bootstrap());
     _authProvider = AuthProvider(matrixService: _matrixService);
@@ -101,6 +118,7 @@ class _TalkAppState extends State<TalkApp> with WidgetsBindingObserver {
     // 注册通知点击回调
     _notificationService.onNotificationTap = _onNotificationTap;
     _notificationService.voiceAnnouncementService = _doubaoTtsService;
+    _notificationService.realtimeSecretaryService = _realtimeSecretaryService;
     _fcmPushService = FcmPushService(
       showLocalNotification: _showFcmLocalNotification,
       onOpenRoom: _onNotificationTap,
@@ -141,6 +159,7 @@ class _TalkAppState extends State<TalkApp> with WidgetsBindingObserver {
     _authProvider.removeListener(_onAuthChanged);
     _notificationService.dispose();
     _doubaoTtsService.dispose();
+    _realtimeSecretaryService.dispose();
     _deepSeekQuickExtractService.dispose();
     _fcmPushService.dispose();
     _keepAliveController.dispose();
@@ -175,6 +194,7 @@ class _TalkAppState extends State<TalkApp> with WidgetsBindingObserver {
         ChangeNotifierProvider.value(value: _chatProvider),
         ChangeNotifierProvider.value(value: _r2Service),
         ChangeNotifierProvider.value(value: _doubaoTtsService),
+        ChangeNotifierProvider.value(value: _realtimeSecretaryService),
         ChangeNotifierProvider.value(value: _deepSeekQuickExtractService),
         ChangeNotifierProvider.value(value: _fcmPushService),
         ChangeNotifierProvider.value(value: _keepAliveController),

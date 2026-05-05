@@ -55,9 +55,12 @@ void main() {
     await _pumpPage(tester, tts: svc, keepAlive: keepAlive);
     await tester.pumpAndSettle();
 
-    await tester.tap(find.text('启用新消息语音播报'));
-    await tester.pumpAndSettle();
+    await _tapText(tester, '启用新消息语音播报');
+    await _tapText(tester, '播报消息内容');
 
+    await _enterTextByLabel(tester, 'Qwen API Key', 'qwen-key-123');
+    await _enterTextByLabel(tester, 'Qwen 模型', 'qwen3.6-flash');
+    await _enterTextByLabel(tester, '消息整理系统提示词', '请整理成一句话');
     await _enterTextByLabel(tester, '豆包 API Key', 'api-key-123');
     await _enterTextByLabel(tester, 'Resource ID', 'seed-tts-2.0');
     await _enterTextByLabel(tester, 'Speaker', 'speaker-a');
@@ -76,6 +79,10 @@ void main() {
     expect(store.config!.enabled, isTrue);
     expect(store.config!.authMode, DoubaoTtsAuthMode.apiKey);
     expect(store.config!.apiKey, 'api-key-123');
+    expect(store.config!.announceMessageContent, isTrue);
+    expect(store.config!.qwenApiKey, 'qwen-key-123');
+    expect(store.config!.qwenModel, 'qwen3.6-flash');
+    expect(store.config!.qwenSystemPrompt, '请整理成一句话');
     expect(store.config!.appId, isEmpty);
     expect(store.config!.accessKey, isEmpty);
     expect(store.config!.resourceId, 'seed-tts-2.0');
@@ -88,6 +95,113 @@ void main() {
     expect(store.config!.pitch, 4);
     expect(store.config!.contextTexts, ['你可以说慢一点吗？', '语气再欢乐一点']);
   });
+
+  testWidgets(
+    'requires qwen key when message content announcement is enabled',
+    (tester) async {
+      final store = _MemoryStore();
+      final svc = DoubaoTtsService(
+        store: store,
+        httpClient: _FakeClient(),
+        customAudioPlayer: (_) async {},
+      );
+      await svc.bootstrap();
+      final keepAlive = KeepAliveController(bridge: _FakeKeepAliveBridge());
+      await keepAlive.bootstrap();
+
+      await _pumpPage(tester, tts: svc, keepAlive: keepAlive);
+      await tester.pumpAndSettle();
+
+      await _tapText(tester, '播报消息内容');
+      await _enterTextByLabel(tester, '豆包 API Key', 'api-key-123');
+      await _enterTextByLabel(tester, 'Resource ID', 'seed-tts-2.0');
+      await _enterTextByLabel(tester, 'Speaker', 'speaker-a');
+      await _tapText(tester, '保存');
+      await tester.pumpAndSettle();
+
+      expect(find.text('开启播报消息内容时，请填写 Qwen API Key'), findsOneWidget);
+      expect(store.config, isNull);
+    },
+  );
+
+  testWidgets('saves realtime dialog content engine config', (tester) async {
+    final store = _MemoryStore();
+    final svc = DoubaoTtsService(
+      store: store,
+      httpClient: _FakeClient(),
+      customAudioPlayer: (_) async {},
+    );
+    await svc.bootstrap();
+    final keepAlive = KeepAliveController(bridge: _FakeKeepAliveBridge());
+    await keepAlive.bootstrap();
+
+    await _pumpPage(tester, tts: svc, keepAlive: keepAlive);
+    await tester.pumpAndSettle();
+
+    await _tapText(tester, '播报消息内容');
+    await _selectDropdownText(tester, '豆包实时语音大模型');
+    await _enterTextByLabel(tester, '实时语音 App ID', 'app-id');
+    await _enterTextByLabel(tester, '实时语音 App Key', 'app-key');
+    await _enterTextByLabel(tester, '实时语音 Access Token', 'token');
+    await _enterTextByLabel(tester, '实时语音 Resource ID', 'volc.speech.dialog');
+    await _enterTextByLabel(tester, '实时语音模型', '1.2.1.1');
+    await _enterTextByLabel(tester, '实时语音音色', 'zh_female_vv_jupiter_bigtts');
+    await _enterTextByLabel(tester, '实时语音系统提示词', '你是播报助手');
+    await _enterTextByLabel(tester, '实时语音说话风格', '简短自然');
+    await _enterTextByLabel(tester, '实时语音播报整理指令', '请整理成一句提醒');
+    await _enterTextByLabel(tester, '豆包 API Key', 'api-key-123');
+    await _enterTextByLabel(tester, 'Resource ID', 'seed-tts-2.0');
+    await _enterTextByLabel(tester, 'Speaker', 'speaker-a');
+    await _tapText(tester, '保存');
+    await tester.pumpAndSettle();
+
+    expect(store.config, isNotNull);
+    expect(
+      store.config!.contentEngine,
+      VoiceAnnouncementContentEngine.realtimeDialog,
+    );
+    expect(store.config!.realtimeAppId, 'app-id');
+    expect(store.config!.realtimeAppKey, 'app-key');
+    expect(store.config!.realtimeAccessToken, 'token');
+    expect(store.config!.realtimeResourceId, 'volc.speech.dialog');
+    expect(store.config!.realtimeModel, '1.2.1.1');
+    expect(store.config!.realtimeSpeaker, 'zh_female_vv_jupiter_bigtts');
+    expect(store.config!.realtimeSystemRole, '你是播报助手');
+    expect(store.config!.realtimeSpeakingStyle, '简短自然');
+    expect(store.config!.realtimeSummaryPrompt, '请整理成一句提醒');
+  });
+
+  testWidgets(
+    'requires realtime credentials when realtime content engine is selected',
+    (tester) async {
+      final store = _MemoryStore();
+      final svc = DoubaoTtsService(
+        store: store,
+        httpClient: _FakeClient(),
+        customAudioPlayer: (_) async {},
+      );
+      await svc.bootstrap();
+      final keepAlive = KeepAliveController(bridge: _FakeKeepAliveBridge());
+      await keepAlive.bootstrap();
+
+      await _pumpPage(tester, tts: svc, keepAlive: keepAlive);
+      await tester.pumpAndSettle();
+
+      await _tapText(tester, '播报消息内容');
+      await _selectDropdownText(tester, '豆包实时语音大模型');
+      await _enterTextByLabel(tester, '豆包 API Key', 'api-key-123');
+      await _enterTextByLabel(tester, 'Resource ID', 'seed-tts-2.0');
+      await _enterTextByLabel(tester, 'Speaker', 'speaker-a');
+      await _tapText(tester, '保存');
+      await tester.pumpAndSettle();
+
+      expect(
+        find.text('请填写实时语音 App ID、App Key 与 Access Token'),
+        findsOneWidget,
+      );
+      expect(store.config, isNull);
+    },
+  );
 
   testWidgets('enable switch persists immediately for saved config', (
     tester,
@@ -225,6 +339,27 @@ Future<void> _tapText(WidgetTester tester, String text) async {
   await Scrollable.ensureVisible(tester.element(finder), alignment: 0.5);
   await tester.pumpAndSettle();
   await tester.tap(finder);
+  await tester.pumpAndSettle();
+}
+
+Future<void> _selectDropdownText(WidgetTester tester, String text) async {
+  var finder = find.text(text);
+  if (finder.evaluate().isEmpty) {
+    finder = find.byType(
+      DropdownButtonFormField<VoiceAnnouncementContentEngine>,
+    );
+  }
+  await tester.scrollUntilVisible(
+    finder,
+    160,
+    scrollable: find.byType(Scrollable).first,
+  );
+  await Scrollable.ensureVisible(tester.element(finder), alignment: 0.5);
+  await tester.pumpAndSettle();
+  await tester.tap(finder);
+  await tester.pumpAndSettle();
+  await tester.tap(find.text(text).last);
+  await tester.pumpAndSettle();
 }
 
 class _MemoryStore implements DoubaoTtsConfigStore {

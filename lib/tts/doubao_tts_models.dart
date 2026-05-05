@@ -1,5 +1,24 @@
 enum DoubaoTtsAuthMode { apiKey, appToken }
 
+enum VoiceAnnouncementContentEngine { qwenTts, realtimeDialog }
+
+const defaultVoiceAnnouncementSummaryModel = 'qwen3.6-flash';
+const defaultVoiceAnnouncementRealtimeResourceId = 'volc.speech.dialog';
+const defaultVoiceAnnouncementRealtimeModel = '1.2.1.1';
+const defaultVoiceAnnouncementRealtimeSpeaker = 'zh_female_vv_jupiter_bigtts';
+const defaultVoiceAnnouncementRealtimeSystemRole =
+    '你是 Talk 的消息语音播报助手。你只负责把收到的聊天消息整理成适合语音播放的简短提醒，不主动追问，不延展闲聊。';
+const defaultVoiceAnnouncementRealtimeSpeakingStyle =
+    '语气自然、简洁、像手机通知提醒。不要寒暄，不要说你收到了，不要问用户是否需要继续。';
+const defaultVoiceAnnouncementRealtimeSummaryPrompt =
+    '请把下面这条聊天消息整理成一句适合语音播报的简短中文摘要。'
+    '只说摘要内容，不要说“发来消息”“新消息”，不要说房间名或发送者名称。'
+    '不要逐条朗读长列表，优先总结数量、主题和重要事项；不要编造消息中没有的信息。';
+const defaultVoiceAnnouncementSummarySystemPrompt =
+    '你是消息语音播报整理助手。请把用户收到的一条聊天消息整理成适合语音播报的简短中文摘要。'
+    '不要逐条朗读长列表，优先总结数量、主题和重要事项；不要编造消息中没有的信息；不要使用 Markdown。'
+    '只输出消息内容摘要本身，不要包含房间名、发送者名称、“发来消息”、“新消息”等通知前缀。';
+
 String doubaoTtsAuthModeToJson(DoubaoTtsAuthMode mode) {
   return switch (mode) {
     DoubaoTtsAuthMode.apiKey => 'apiKey',
@@ -11,6 +30,23 @@ DoubaoTtsAuthMode doubaoTtsAuthModeFromJson(Object? raw) {
   return raw == 'appToken'
       ? DoubaoTtsAuthMode.appToken
       : DoubaoTtsAuthMode.apiKey;
+}
+
+String voiceAnnouncementContentEngineToJson(
+  VoiceAnnouncementContentEngine engine,
+) {
+  return switch (engine) {
+    VoiceAnnouncementContentEngine.qwenTts => 'qwenTts',
+    VoiceAnnouncementContentEngine.realtimeDialog => 'realtimeDialog',
+  };
+}
+
+VoiceAnnouncementContentEngine voiceAnnouncementContentEngineFromJson(
+  Object? raw,
+) {
+  return raw == 'realtimeDialog'
+      ? VoiceAnnouncementContentEngine.realtimeDialog
+      : VoiceAnnouncementContentEngine.qwenTts;
 }
 
 class DoubaoTtsConfig {
@@ -29,6 +65,20 @@ class DoubaoTtsConfig {
   final String explicitDialect;
   final int pitch;
   final List<String> contextTexts;
+  final bool announceMessageContent;
+  final VoiceAnnouncementContentEngine contentEngine;
+  final String qwenApiKey;
+  final String qwenModel;
+  final String qwenSystemPrompt;
+  final String realtimeAppId;
+  final String realtimeAppKey;
+  final String realtimeAccessToken;
+  final String realtimeResourceId;
+  final String realtimeModel;
+  final String realtimeSpeaker;
+  final String realtimeSystemRole;
+  final String realtimeSpeakingStyle;
+  final String realtimeSummaryPrompt;
 
   const DoubaoTtsConfig({
     required this.enabled,
@@ -46,6 +96,20 @@ class DoubaoTtsConfig {
     this.explicitDialect = '',
     this.pitch = 0,
     this.contextTexts = const [],
+    this.announceMessageContent = false,
+    this.contentEngine = VoiceAnnouncementContentEngine.qwenTts,
+    this.qwenApiKey = '',
+    this.qwenModel = defaultVoiceAnnouncementSummaryModel,
+    this.qwenSystemPrompt = defaultVoiceAnnouncementSummarySystemPrompt,
+    this.realtimeAppId = '',
+    this.realtimeAppKey = '',
+    this.realtimeAccessToken = '',
+    this.realtimeResourceId = defaultVoiceAnnouncementRealtimeResourceId,
+    this.realtimeModel = defaultVoiceAnnouncementRealtimeModel,
+    this.realtimeSpeaker = defaultVoiceAnnouncementRealtimeSpeaker,
+    this.realtimeSystemRole = defaultVoiceAnnouncementRealtimeSystemRole,
+    this.realtimeSpeakingStyle = defaultVoiceAnnouncementRealtimeSpeakingStyle,
+    this.realtimeSummaryPrompt = defaultVoiceAnnouncementRealtimeSummaryPrompt,
   });
 
   DoubaoTtsConfig copyWith({
@@ -64,6 +128,20 @@ class DoubaoTtsConfig {
     String? explicitDialect,
     int? pitch,
     List<String>? contextTexts,
+    bool? announceMessageContent,
+    VoiceAnnouncementContentEngine? contentEngine,
+    String? qwenApiKey,
+    String? qwenModel,
+    String? qwenSystemPrompt,
+    String? realtimeAppId,
+    String? realtimeAppKey,
+    String? realtimeAccessToken,
+    String? realtimeResourceId,
+    String? realtimeModel,
+    String? realtimeSpeaker,
+    String? realtimeSystemRole,
+    String? realtimeSpeakingStyle,
+    String? realtimeSummaryPrompt,
   }) {
     return DoubaoTtsConfig(
       enabled: enabled ?? this.enabled,
@@ -82,6 +160,23 @@ class DoubaoTtsConfig {
       explicitDialect: explicitDialect ?? this.explicitDialect,
       pitch: pitch ?? this.pitch,
       contextTexts: contextTexts ?? this.contextTexts,
+      announceMessageContent:
+          announceMessageContent ?? this.announceMessageContent,
+      contentEngine: contentEngine ?? this.contentEngine,
+      qwenApiKey: qwenApiKey ?? this.qwenApiKey,
+      qwenModel: qwenModel ?? this.qwenModel,
+      qwenSystemPrompt: qwenSystemPrompt ?? this.qwenSystemPrompt,
+      realtimeAppId: realtimeAppId ?? this.realtimeAppId,
+      realtimeAppKey: realtimeAppKey ?? this.realtimeAppKey,
+      realtimeAccessToken: realtimeAccessToken ?? this.realtimeAccessToken,
+      realtimeResourceId: realtimeResourceId ?? this.realtimeResourceId,
+      realtimeModel: realtimeModel ?? this.realtimeModel,
+      realtimeSpeaker: realtimeSpeaker ?? this.realtimeSpeaker,
+      realtimeSystemRole: realtimeSystemRole ?? this.realtimeSystemRole,
+      realtimeSpeakingStyle:
+          realtimeSpeakingStyle ?? this.realtimeSpeakingStyle,
+      realtimeSummaryPrompt:
+          realtimeSummaryPrompt ?? this.realtimeSummaryPrompt,
     );
   }
 
@@ -101,6 +196,20 @@ class DoubaoTtsConfig {
     'explicitDialect': explicitDialect,
     'pitch': pitch,
     'contextTexts': contextTexts,
+    'announceMessageContent': announceMessageContent,
+    'contentEngine': voiceAnnouncementContentEngineToJson(contentEngine),
+    'qwenApiKey': qwenApiKey,
+    'qwenModel': qwenModel,
+    'qwenSystemPrompt': qwenSystemPrompt,
+    'realtimeAppId': realtimeAppId,
+    'realtimeAppKey': realtimeAppKey,
+    'realtimeAccessToken': realtimeAccessToken,
+    'realtimeResourceId': realtimeResourceId,
+    'realtimeModel': realtimeModel,
+    'realtimeSpeaker': realtimeSpeaker,
+    'realtimeSystemRole': realtimeSystemRole,
+    'realtimeSpeakingStyle': realtimeSpeakingStyle,
+    'realtimeSummaryPrompt': realtimeSummaryPrompt,
   };
 
   factory DoubaoTtsConfig.fromJson(Map<String, dynamic> j) {
@@ -123,6 +232,42 @@ class DoubaoTtsConfig {
       contextTexts: rawContextTexts is List
           ? rawContextTexts.whereType<String>().toList(growable: false)
           : const [],
+      announceMessageContent: j['announceMessageContent'] as bool? ?? false,
+      contentEngine: voiceAnnouncementContentEngineFromJson(j['contentEngine']),
+      qwenApiKey: j['qwenApiKey'] as String? ?? '',
+      qwenModel: (j['qwenModel'] as String?)?.trim().isNotEmpty == true
+          ? j['qwenModel'] as String
+          : defaultVoiceAnnouncementSummaryModel,
+      qwenSystemPrompt:
+          (j['qwenSystemPrompt'] as String?)?.trim().isNotEmpty == true
+          ? j['qwenSystemPrompt'] as String
+          : defaultVoiceAnnouncementSummarySystemPrompt,
+      realtimeAppId: j['realtimeAppId'] as String? ?? '',
+      realtimeAppKey: j['realtimeAppKey'] as String? ?? '',
+      realtimeAccessToken: j['realtimeAccessToken'] as String? ?? '',
+      realtimeResourceId:
+          (j['realtimeResourceId'] as String?)?.trim().isNotEmpty == true
+          ? j['realtimeResourceId'] as String
+          : defaultVoiceAnnouncementRealtimeResourceId,
+      realtimeModel: (j['realtimeModel'] as String?)?.trim().isNotEmpty == true
+          ? j['realtimeModel'] as String
+          : defaultVoiceAnnouncementRealtimeModel,
+      realtimeSpeaker:
+          (j['realtimeSpeaker'] as String?)?.trim().isNotEmpty == true
+          ? j['realtimeSpeaker'] as String
+          : defaultVoiceAnnouncementRealtimeSpeaker,
+      realtimeSystemRole:
+          (j['realtimeSystemRole'] as String?)?.trim().isNotEmpty == true
+          ? j['realtimeSystemRole'] as String
+          : defaultVoiceAnnouncementRealtimeSystemRole,
+      realtimeSpeakingStyle:
+          (j['realtimeSpeakingStyle'] as String?)?.trim().isNotEmpty == true
+          ? j['realtimeSpeakingStyle'] as String
+          : defaultVoiceAnnouncementRealtimeSpeakingStyle,
+      realtimeSummaryPrompt:
+          (j['realtimeSummaryPrompt'] as String?)?.trim().isNotEmpty == true
+          ? j['realtimeSummaryPrompt'] as String
+          : defaultVoiceAnnouncementRealtimeSummaryPrompt,
     );
   }
 
@@ -138,6 +283,12 @@ class DoubaoTtsConfig {
       hasAuthConfig &&
       resourceId.trim().isNotEmpty &&
       speaker.trim().isNotEmpty;
+
+  bool get hasRealtimeDialogConfig =>
+      realtimeAppId.trim().isNotEmpty &&
+      realtimeAppKey.trim().isNotEmpty &&
+      realtimeAccessToken.trim().isNotEmpty &&
+      realtimeResourceId.trim().isNotEmpty;
 }
 
 enum DoubaoTtsPhase { loading, noStore, configured }

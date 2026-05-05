@@ -46,4 +46,6 @@ flutter {
 dependencies {
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")
     implementation("androidx.core:core-ktx:1.13.1")
+    implementation("com.bytedance.speechengine:speechengine_tob:0.0.14.6")
+    implementation("com.squareup.okhttp3:okhttp:4.12.0")
 }

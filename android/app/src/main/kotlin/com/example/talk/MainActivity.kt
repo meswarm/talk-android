@@ -15,6 +15,7 @@ import io.flutter.plugin.common.MethodChannel
 
 class MainActivity : FlutterActivity() {
     private var pendingKeepAliveStartResult: MethodChannel.Result? = null
+    private var pendingRealtimeSecretaryStartResult: MethodChannel.Result? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -43,6 +44,75 @@ class MainActivity : FlutterActivity() {
                 else -> result.notImplemented()
             }
         }
+        val realtimeSecretaryChannel = MethodChannel(
+            flutterEngine.dartExecutor.binaryMessenger,
+            "talk/realtime_secretary",
+        )
+        TalkRealtimeSecretaryService.setFlutterChannel(realtimeSecretaryChannel)
+        realtimeSecretaryChannel.setMethodCallHandler { call, result ->
+            when (call.method) {
+                "startRealtimeSecretaryService" -> startRealtimeSecretaryService(result)
+                "stopRealtimeSecretaryService" -> {
+                    TalkRealtimeSecretaryService.shutdownEngine()
+                    stopService(Intent(this, TalkRealtimeSecretaryService::class.java))
+                    result.success(null)
+                }
+                "isRealtimeSecretaryServiceRunning" -> {
+                    result.success(TalkRealtimeSecretaryService.isRunning)
+                }
+                "testRealtimeSecretaryConfig" -> {
+                    runCatching {
+                        TalkRealtimeSecretaryService.testConfig(
+                            this,
+                            call.arguments as Map<*, *>,
+                        )
+                    }.onSuccess {
+                        result.success(null)
+                    }.onFailure {
+                        result.error("REALTIME_SECRETARY_TEST_FAILED", it.message, null)
+                    }
+                }
+                "startRealtimeSecretaryWakeSession" -> {
+                    runCatching {
+                        @Suppress("UNCHECKED_CAST")
+                        TalkRealtimeSecretaryService.startWakeSession(
+                            this,
+                            call.arguments as Map<*, *>,
+                        )
+                    }.onSuccess {
+                        result.success(null)
+                    }.onFailure {
+                        result.error("REALTIME_SECRETARY_SESSION_FAILED", it.message, null)
+                    }
+                }
+                "sendRealtimeSecretaryContextTextQuery" -> {
+                    @Suppress("UNCHECKED_CAST")
+                    val args = call.arguments as? Map<String, Any?>
+                    TalkRealtimeSecretaryService.sendContextTextQuery(
+                        args?.get("text") as? String ?: "",
+                    )
+                    result.success(null)
+                }
+                "speakVoiceAnnouncementTextQuery" -> {
+                    runCatching {
+                        @Suppress("UNCHECKED_CAST")
+                        TalkRealtimeSecretaryService.speakVoiceAnnouncementTextQuery(
+                            this,
+                            call.arguments as Map<*, *>,
+                        )
+                    }.onSuccess {
+                        result.success(null)
+                    }.onFailure {
+                        result.error("VOICE_ANNOUNCEMENT_REALTIME_FAILED", it.message, null)
+                    }
+                }
+                "stopRealtimeSecretarySession" -> {
+                    TalkRealtimeSecretaryService.stopCurrentSession()
+                    result.success(null)
+                }
+                else -> result.notImplemented()
+            }
+        }
     }
 
     override fun onRequestPermissionsResult(
@@ -51,6 +121,29 @@ class MainActivity : FlutterActivity() {
         grantResults: IntArray,
     ) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode == REQUEST_REALTIME_SECRETARY_PERMISSIONS) {
+            val result = pendingRealtimeSecretaryStartResult ?: return
+            pendingRealtimeSecretaryStartResult = null
+            val granted = grantResults.isNotEmpty() &&
+                grantResults.all { it == PackageManager.PERMISSION_GRANTED }
+            if (granted) {
+                runCatching {
+                    startRealtimeSecretaryServiceIntent()
+                }.onSuccess {
+                    result.success(null)
+                }.onFailure {
+                    result.error("REALTIME_SECRETARY_START_FAILED", it.message, null)
+                }
+            } else {
+                result.error(
+                    "REALTIME_SECRETARY_PERMISSION_DENIED",
+                    "需要通知和麦克风权限才能启用实时语音秘书。",
+                    null,
+                )
+            }
+            return
+        }
+
         if (requestCode != REQUEST_POST_NOTIFICATIONS) return
 
         val result = pendingKeepAliveStartResult ?: return
@@ -116,6 +209,58 @@ class MainActivity : FlutterActivity() {
         }
     }
 
+    private fun startRealtimeSecretaryService(result: MethodChannel.Result) {
+        val permissions = mutableListOf<String>()
+        if (
+            Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+            ContextCompat.checkSelfPermission(
+                this,
+                Manifest.permission.POST_NOTIFICATIONS,
+            ) != PackageManager.PERMISSION_GRANTED
+        ) {
+            permissions.add(Manifest.permission.POST_NOTIFICATIONS)
+        }
+        if (
+            ContextCompat.checkSelfPermission(
+                this,
+                Manifest.permission.RECORD_AUDIO,
+            ) != PackageManager.PERMISSION_GRANTED
+        ) {
+            permissions.add(Manifest.permission.RECORD_AUDIO)
+        }
+
+        if (permissions.isNotEmpty()) {
+            pendingRealtimeSecretaryStartResult?.error(
+                "REALTIME_SECRETARY_PERMISSION_PENDING",
+                "已有实时语音秘书权限请求正在处理。",
+                null,
+            )
+            pendingRealtimeSecretaryStartResult = result
+            requestPermissions(
+                permissions.toTypedArray(),
+                REQUEST_REALTIME_SECRETARY_PERMISSIONS,
+            )
+            return
+        }
+
+        runCatching {
+            startRealtimeSecretaryServiceIntent()
+        }.onSuccess {
+            result.success(null)
+        }.onFailure {
+            result.error("REALTIME_SECRETARY_START_FAILED", it.message, null)
+        }
+    }
+
+    private fun startRealtimeSecretaryServiceIntent() {
+        val intent = Intent(this, TalkRealtimeSecretaryService::class.java)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            startForegroundService(intent)
+        } else {
+            startService(intent)
+        }
+    }
+
     private fun openBatteryOptimizationSettings() {
         val packageUri = Uri.parse("package:$packageName")
         val intent = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
@@ -150,5 +295,6 @@ class MainActivity : FlutterActivity() {
 
     companion object {
         private const val REQUEST_POST_NOTIFICATIONS = 9001
+        private const val REQUEST_REALTIME_SECRETARY_PERMISSIONS = 9002
     }
 }

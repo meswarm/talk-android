@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:talk/room/room_r2_prefix.dart';
 
@@ -6,5 +8,21 @@ import 'package:talk/room/room_r2_prefix.dart';
 void main() {
   test('room R2 state event type is stable', () {
     expect(kTalkRoomR2PrefixEventType, 'com.talk.r2_prefix');
+  });
+
+  test('room text edit dialogs own their text controllers', () {
+    final source = File('lib/pages/room_info_page.dart').readAsStringSync();
+
+    expect(
+      source,
+      contains('class _RoomTextEditDialog extends StatefulWidget'),
+    );
+    expect(source, contains('Navigator.pop(context, _controller.text)'));
+    expect(
+      source,
+      isNot(
+        contains('final controller = TextEditingController(text: initial)'),
+      ),
+    );
   });
 }

@@ -3,6 +3,8 @@ import 'package:matrix/matrix.dart';
 import 'package:provider/provider.dart';
 import '../providers/auth_provider.dart';
 import '../providers/chat_provider.dart';
+import '../realtime_secretary/realtime_secretary_debug_panel.dart';
+import '../realtime_secretary/realtime_secretary_service.dart';
 import '../widgets/conversation_tile.dart';
 import '../widgets/matrix_authenticated_image.dart';
 import '../theme/app_colors.dart';
@@ -318,6 +320,25 @@ class _ConversationListPageState extends State<ConversationListPage> {
                     ],
                   ],
                 ),
+          Consumer<RealtimeSecretaryService>(
+            builder: (context, secretary, _) {
+              if (!secretary.shouldShowDebugConversation) {
+                return const SizedBox.shrink();
+              }
+              return Positioned(
+                left: 12,
+                right: 12,
+                bottom: 12,
+                child: SafeArea(
+                  top: false,
+                  child: RealtimeSecretaryDebugPanel(
+                    state: secretary.state,
+                    entries: secretary.debugConversationEntries,
+                  ),
+                ),
+              );
+            },
+          ),
           if (_creating)
             Container(
               color: Colors.black.withValues(alpha: 0.3),

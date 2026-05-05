@@ -25,8 +25,39 @@ class _VoiceAnnouncementSettingsPageState
   final _loudnessRate = TextEditingController(text: '0');
   final _pitch = TextEditingController(text: '0');
   final _contextTexts = TextEditingController();
+  final _qwenApiKey = TextEditingController();
+  final _qwenModel = TextEditingController(
+    text: defaultVoiceAnnouncementSummaryModel,
+  );
+  final _qwenSystemPrompt = TextEditingController(
+    text: defaultVoiceAnnouncementSummarySystemPrompt,
+  );
+  final _realtimeAppId = TextEditingController();
+  final _realtimeAppKey = TextEditingController();
+  final _realtimeAccessToken = TextEditingController();
+  final _realtimeResourceId = TextEditingController(
+    text: defaultVoiceAnnouncementRealtimeResourceId,
+  );
+  final _realtimeModel = TextEditingController(
+    text: defaultVoiceAnnouncementRealtimeModel,
+  );
+  final _realtimeSpeaker = TextEditingController(
+    text: defaultVoiceAnnouncementRealtimeSpeaker,
+  );
+  final _realtimeSystemRole = TextEditingController(
+    text: defaultVoiceAnnouncementRealtimeSystemRole,
+  );
+  final _realtimeSpeakingStyle = TextEditingController(
+    text: defaultVoiceAnnouncementRealtimeSpeakingStyle,
+  );
+  final _realtimeSummaryPrompt = TextEditingController(
+    text: defaultVoiceAnnouncementRealtimeSummaryPrompt,
+  );
 
   bool _enabled = false;
+  bool _announceMessageContent = false;
+  VoiceAnnouncementContentEngine _contentEngine =
+      VoiceAnnouncementContentEngine.qwenTts;
   bool _markdownFilterEnabled = false;
   bool _latexEnabled = false;
   bool _filterParentheses = true;
@@ -52,6 +83,18 @@ class _VoiceAnnouncementSettingsPageState
     _loudnessRate.dispose();
     _pitch.dispose();
     _contextTexts.dispose();
+    _qwenApiKey.dispose();
+    _qwenModel.dispose();
+    _qwenSystemPrompt.dispose();
+    _realtimeAppId.dispose();
+    _realtimeAppKey.dispose();
+    _realtimeAccessToken.dispose();
+    _realtimeResourceId.dispose();
+    _realtimeModel.dispose();
+    _realtimeSpeaker.dispose();
+    _realtimeSystemRole.dispose();
+    _realtimeSpeakingStyle.dispose();
+    _realtimeSummaryPrompt.dispose();
     super.dispose();
   }
 
@@ -74,6 +117,20 @@ class _VoiceAnnouncementSettingsPageState
       _loudnessRate.text = cfg.loudnessRate.toString();
       _pitch.text = cfg.pitch.toString();
       _contextTexts.text = cfg.contextTexts.join('\n');
+      _announceMessageContent = cfg.announceMessageContent;
+      _contentEngine = cfg.contentEngine;
+      _qwenApiKey.text = cfg.qwenApiKey;
+      _qwenModel.text = cfg.qwenModel;
+      _qwenSystemPrompt.text = cfg.qwenSystemPrompt;
+      _realtimeAppId.text = cfg.realtimeAppId;
+      _realtimeAppKey.text = cfg.realtimeAppKey;
+      _realtimeAccessToken.text = cfg.realtimeAccessToken;
+      _realtimeResourceId.text = cfg.realtimeResourceId;
+      _realtimeModel.text = cfg.realtimeModel;
+      _realtimeSpeaker.text = cfg.realtimeSpeaker;
+      _realtimeSystemRole.text = cfg.realtimeSystemRole;
+      _realtimeSpeakingStyle.text = cfg.realtimeSpeakingStyle;
+      _realtimeSummaryPrompt.text = cfg.realtimeSummaryPrompt;
       _markdownFilterEnabled = cfg.markdownFilterEnabled;
       _latexEnabled = cfg.latexEnabled;
       _filterParentheses = cfg.filterParentheses;
@@ -102,6 +159,26 @@ class _VoiceAnnouncementSettingsPageState
       });
       return;
     }
+    if (_announceMessageContent &&
+        _contentEngine == VoiceAnnouncementContentEngine.qwenTts &&
+        _qwenApiKey.text.trim().isEmpty) {
+      setState(() {
+        _err = '开启播报消息内容时，请填写 Qwen API Key';
+        _busy = false;
+      });
+      return;
+    }
+    if (_announceMessageContent &&
+        _contentEngine == VoiceAnnouncementContentEngine.realtimeDialog &&
+        (_realtimeAppId.text.trim().isEmpty ||
+            _realtimeAppKey.text.trim().isEmpty ||
+            _realtimeAccessToken.text.trim().isEmpty)) {
+      setState(() {
+        _err = '请填写实时语音 App ID、App Key 与 Access Token';
+        _busy = false;
+      });
+      return;
+    }
     final payload = DoubaoTtsConfig(
       enabled: _enabled,
       authMode: DoubaoTtsAuthMode.apiKey,
@@ -118,6 +195,36 @@ class _VoiceAnnouncementSettingsPageState
       explicitDialect: _explicitDialect,
       pitch: pitch,
       contextTexts: _contextTextsFromController(),
+      announceMessageContent: _announceMessageContent,
+      contentEngine: _contentEngine,
+      qwenApiKey: _qwenApiKey.text.trim(),
+      qwenModel: _qwenModel.text.trim().isEmpty
+          ? defaultVoiceAnnouncementSummaryModel
+          : _qwenModel.text.trim(),
+      qwenSystemPrompt: _qwenSystemPrompt.text.trim().isEmpty
+          ? defaultVoiceAnnouncementSummarySystemPrompt
+          : _qwenSystemPrompt.text.trim(),
+      realtimeAppId: _realtimeAppId.text.trim(),
+      realtimeAppKey: _realtimeAppKey.text.trim(),
+      realtimeAccessToken: _realtimeAccessToken.text.trim(),
+      realtimeResourceId: _realtimeResourceId.text.trim().isEmpty
+          ? defaultVoiceAnnouncementRealtimeResourceId
+          : _realtimeResourceId.text.trim(),
+      realtimeModel: _realtimeModel.text.trim().isEmpty
+          ? defaultVoiceAnnouncementRealtimeModel
+          : _realtimeModel.text.trim(),
+      realtimeSpeaker: _realtimeSpeaker.text.trim().isEmpty
+          ? defaultVoiceAnnouncementRealtimeSpeaker
+          : _realtimeSpeaker.text.trim(),
+      realtimeSystemRole: _realtimeSystemRole.text.trim().isEmpty
+          ? defaultVoiceAnnouncementRealtimeSystemRole
+          : _realtimeSystemRole.text.trim(),
+      realtimeSpeakingStyle: _realtimeSpeakingStyle.text.trim().isEmpty
+          ? defaultVoiceAnnouncementRealtimeSpeakingStyle
+          : _realtimeSpeakingStyle.text.trim(),
+      realtimeSummaryPrompt: _realtimeSummaryPrompt.text.trim().isEmpty
+          ? defaultVoiceAnnouncementRealtimeSummaryPrompt
+          : _realtimeSummaryPrompt.text.trim(),
     );
     if (!payload.isConfigured) {
       setState(() {
@@ -177,6 +284,22 @@ class _VoiceAnnouncementSettingsPageState
       _loudnessRate.text = '0';
       _pitch.text = '0';
       _contextTexts.clear();
+      _announceMessageContent = false;
+      _contentEngine = VoiceAnnouncementContentEngine.qwenTts;
+      _qwenApiKey.clear();
+      _qwenModel.text = defaultVoiceAnnouncementSummaryModel;
+      _qwenSystemPrompt.text = defaultVoiceAnnouncementSummarySystemPrompt;
+      _realtimeAppId.clear();
+      _realtimeAppKey.clear();
+      _realtimeAccessToken.clear();
+      _realtimeResourceId.text = defaultVoiceAnnouncementRealtimeResourceId;
+      _realtimeModel.text = defaultVoiceAnnouncementRealtimeModel;
+      _realtimeSpeaker.text = defaultVoiceAnnouncementRealtimeSpeaker;
+      _realtimeSystemRole.text = defaultVoiceAnnouncementRealtimeSystemRole;
+      _realtimeSpeakingStyle.text =
+          defaultVoiceAnnouncementRealtimeSpeakingStyle;
+      _realtimeSummaryPrompt.text =
+          defaultVoiceAnnouncementRealtimeSummaryPrompt;
       _markdownFilterEnabled = false;
       _latexEnabled = false;
       _filterParentheses = true;
@@ -286,6 +409,179 @@ class _VoiceAnnouncementSettingsPageState
             title: const Text('启用新消息语音播报'),
             contentPadding: EdgeInsets.zero,
           ),
+          SwitchListTile(
+            value: _announceMessageContent,
+            onChanged: _busy
+                ? null
+                : (v) => setState(() => _announceMessageContent = v),
+            title: const Text('播报消息内容'),
+            subtitle: const Text('开启后先用 Qwen 整理消息内容，再语音播报摘要。'),
+            contentPadding: EdgeInsets.zero,
+          ),
+          if (_announceMessageContent) ...[
+            const SizedBox(height: 12),
+            DropdownButtonFormField<VoiceAnnouncementContentEngine>(
+              key: ValueKey(_contentEngine),
+              initialValue: _contentEngine,
+              decoration: const InputDecoration(
+                labelText: '消息整理方式',
+                border: OutlineInputBorder(),
+              ),
+              items: const [
+                DropdownMenuItem(
+                  value: VoiceAnnouncementContentEngine.qwenTts,
+                  child: Text('Qwen + 豆包 TTS'),
+                ),
+                DropdownMenuItem(
+                  value: VoiceAnnouncementContentEngine.realtimeDialog,
+                  child: Text('豆包实时语音大模型'),
+                ),
+              ],
+              onChanged: _busy
+                  ? null
+                  : (v) => setState(
+                      () => _contentEngine =
+                          v ?? VoiceAnnouncementContentEngine.qwenTts,
+                    ),
+            ),
+            const SizedBox(height: 12),
+            if (_contentEngine == VoiceAnnouncementContentEngine.qwenTts) ...[
+              TextField(
+                controller: _qwenApiKey,
+                decoration: const InputDecoration(
+                  labelText: 'Qwen API Key',
+                  border: OutlineInputBorder(),
+                ),
+                obscureText: true,
+                enabled: !_busy,
+                autocorrect: false,
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: _qwenModel,
+                decoration: const InputDecoration(
+                  labelText: 'Qwen 模型',
+                  helperText: defaultVoiceAnnouncementSummaryModel,
+                  border: OutlineInputBorder(),
+                ),
+                enabled: !_busy,
+                autocorrect: false,
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: _qwenSystemPrompt,
+                decoration: const InputDecoration(
+                  labelText: '消息整理系统提示词',
+                  border: OutlineInputBorder(),
+                ),
+                minLines: 4,
+                maxLines: 6,
+                enabled: !_busy,
+                autocorrect: false,
+              ),
+            ] else ...[
+              TextField(
+                controller: _realtimeAppId,
+                decoration: const InputDecoration(
+                  labelText: '实时语音 App ID',
+                  border: OutlineInputBorder(),
+                ),
+                enabled: !_busy,
+                autocorrect: false,
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: _realtimeAppKey,
+                decoration: const InputDecoration(
+                  labelText: '实时语音 App Key',
+                  border: OutlineInputBorder(),
+                ),
+                obscureText: true,
+                enabled: !_busy,
+                autocorrect: false,
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: _realtimeAccessToken,
+                decoration: const InputDecoration(
+                  labelText: '实时语音 Access Token',
+                  border: OutlineInputBorder(),
+                ),
+                obscureText: true,
+                enabled: !_busy,
+                autocorrect: false,
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: _realtimeResourceId,
+                decoration: const InputDecoration(
+                  labelText: '实时语音 Resource ID',
+                  helperText: defaultVoiceAnnouncementRealtimeResourceId,
+                  border: OutlineInputBorder(),
+                ),
+                enabled: !_busy,
+                autocorrect: false,
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: _realtimeModel,
+                decoration: const InputDecoration(
+                  labelText: '实时语音模型',
+                  helperText: defaultVoiceAnnouncementRealtimeModel,
+                  border: OutlineInputBorder(),
+                ),
+                enabled: !_busy,
+                autocorrect: false,
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: _realtimeSpeaker,
+                decoration: const InputDecoration(
+                  labelText: '实时语音音色',
+                  helperText: defaultVoiceAnnouncementRealtimeSpeaker,
+                  border: OutlineInputBorder(),
+                ),
+                enabled: !_busy,
+                autocorrect: false,
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: _realtimeSystemRole,
+                decoration: const InputDecoration(
+                  labelText: '实时语音系统提示词',
+                  border: OutlineInputBorder(),
+                ),
+                minLines: 3,
+                maxLines: 5,
+                enabled: !_busy,
+                autocorrect: false,
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: _realtimeSpeakingStyle,
+                decoration: const InputDecoration(
+                  labelText: '实时语音说话风格',
+                  border: OutlineInputBorder(),
+                ),
+                minLines: 2,
+                maxLines: 4,
+                enabled: !_busy,
+                autocorrect: false,
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: _realtimeSummaryPrompt,
+                decoration: const InputDecoration(
+                  labelText: '实时语音播报整理指令',
+                  border: OutlineInputBorder(),
+                ),
+                minLines: 4,
+                maxLines: 6,
+                enabled: !_busy,
+                autocorrect: false,
+              ),
+            ],
+          ],
           const Divider(height: 28),
           const Text(
             '常驻监听模式',

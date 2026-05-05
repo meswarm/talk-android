@@ -49,6 +49,7 @@ class LocalStorage {
   static const _keyTableMediaPreviewSizes = 'talk_table_media_preview_sizes_v1';
   static const _keyRoomQuickExtractPromptPrefix =
       'talk_room_quick_extract_prompt_';
+  static const _keyRoomCommonPhrasesPrefix = 'talk_room_common_phrases_';
 
   /// 按房间保存的「聊天提示备注」（仅本机，与 Matrix 无关）。
   static const _keyRoomNotePrefix = 'talk_room_note_';
@@ -144,6 +145,42 @@ class LocalStorage {
   Future<void> saveVoiceKeepAliveEnabled(bool enabled) async {
     final prefs = await _preferences;
     await prefs.setBool(_keyVoiceKeepAliveEnabled, enabled);
+  }
+
+  static String _roomCommonPhrasesKey(String roomId) =>
+      '$_keyRoomCommonPhrasesPrefix$roomId';
+
+  Future<List<String>> loadRoomCommonPhrases(String roomId) async {
+    final prefs = await _preferences;
+    final raw = prefs.getString(_roomCommonPhrasesKey(roomId));
+    if (raw == null || raw.isEmpty) return [];
+    try {
+      final decoded = jsonDecode(raw);
+      if (decoded is List) {
+        return decoded
+            .map((e) => e.toString().trim())
+            .where((e) => e.isNotEmpty)
+            .toList();
+      }
+    } catch (_) {}
+    return [];
+  }
+
+  Future<void> saveRoomCommonPhrases(
+    String roomId,
+    List<String> phrases,
+  ) async {
+    final prefs = await _preferences;
+    final items = phrases
+        .map((e) => e.trim())
+        .where((e) => e.isNotEmpty)
+        .toList(growable: false);
+    final key = _roomCommonPhrasesKey(roomId);
+    if (items.isEmpty) {
+      await prefs.remove(key);
+      return;
+    }
+    await prefs.setString(key, jsonEncode(items));
   }
 
   // ========== 消息草稿 ==========

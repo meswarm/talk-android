@@ -26,6 +26,8 @@ import 'camera_capture_page.dart';
 import '../widgets/matrix_authenticated_image.dart';
 import '../widgets/composer/mobile_markdown_composer.dart';
 import '../widgets/composer/markdown_syntax_text_editing_controller.dart';
+import '../widgets/common_phrases_sheet.dart';
+import '../widgets/quick_extract_candidates_panel.dart';
 import '../widgets/chat_time_separator.dart';
 import '../widgets/message_bubble.dart';
 import '../widgets/room_note_hint_panel.dart';
@@ -66,8 +68,11 @@ class _ChatPageState extends State<ChatPage> with RouteAware {
   StreamSubscription<SyncUpdate>? _clientSyncSub;
 
   bool _composerExpanded = false;
+  bool _commonPhrasesVisible = false;
   bool _uploadingMedia = false;
   bool _quickExtractBusy = false;
+  List<QuickExtractCandidate> _quickExtractCandidates = const [];
+  bool _quickExtractPanelVisible = false;
   double _composerHeightPct = LocalStorage.defaultComposerHeightPct.toDouble();
   ComposerViewMode _composerViewMode = ComposerViewMode.source;
   final FocusNode _collapsedComposerFocus = FocusNode();
@@ -148,6 +153,9 @@ class _ChatPageState extends State<ChatPage> with RouteAware {
     _remoteTypingLine = null;
     _lastReadMarkerEventId = null;
     _roomNotePanelVisible = false;
+    _commonPhrasesVisible = false;
+    _quickExtractPanelVisible = false;
+    _quickExtractCandidates = const [];
     _roomNoteText = '';
     _roomAutoCollapseEnabled = true;
     NotificationService().activeRoomId = widget.room.id;
@@ -481,6 +489,8 @@ class _ChatPageState extends State<ChatPage> with RouteAware {
     if (_composerExpanded) return;
     setState(() {
       _composerExpanded = true;
+      _commonPhrasesVisible = false;
+      _quickExtractPanelVisible = false;
       _composerViewMode = ComposerViewMode.source;
     });
     _focusComposerSourceAfterBuild();
@@ -513,11 +523,29 @@ class _ChatPageState extends State<ChatPage> with RouteAware {
   }
 
   void _insertQuickExtractValue(String value) {
+    if (mounted) {
+      setState(() => _quickExtractPanelVisible = false);
+    }
+    _insertTextIntoCollapsedComposer(value, appendOnExistingText: true);
+  }
+
+  void _insertCommonPhraseValue(String value) {
+    if (mounted) {
+      setState(() => _commonPhrasesVisible = false);
+    }
+    _insertTextIntoCollapsedComposer(value);
+  }
+
+  void _insertTextIntoCollapsedComposer(
+    String value, {
+    bool appendOnExistingText = false,
+  }) {
     if (!mounted) return;
     final current = _messageController.text;
     final selection = _messageController.selection;
-    final hasText = current.trim().isNotEmpty;
-    final insertion = hasText ? '\n$value' : value;
+    final insertion = appendOnExistingText && current.trim().isNotEmpty
+        ? '\n$value'
+        : value;
     final start = selection.isValid ? selection.start : current.length;
     final end = selection.isValid ? selection.end : current.length;
     final next = current.replaceRange(start, end, insertion);
@@ -531,54 +559,25 @@ class _ChatPageState extends State<ChatPage> with RouteAware {
     _collapsedComposerFocus.requestFocus();
   }
 
-  Future<void> _showQuickExtractCandidates(
-    List<QuickExtractCandidate> items,
-  ) async {
+  void _toggleCommonPhrasesPanel() {
+    if (_uploadingMedia) return;
+    setState(() {
+      _commonPhrasesVisible = !_commonPhrasesVisible;
+      if (_commonPhrasesVisible) _quickExtractPanelVisible = false;
+    });
+  }
+
+  void _showQuickExtractCandidates(List<QuickExtractCandidate> items) {
     final messenger = ScaffoldMessenger.of(context);
     if (items.isEmpty) {
       messenger.showSnackBar(const SnackBar(content: Text('未提取到选项')));
       return;
     }
-    await showModalBottomSheet<void>(
-      context: context,
-      showDragHandle: true,
-      builder: (sheetContext) => SafeArea(
-        child: ListView.separated(
-          shrinkWrap: true,
-          itemCount: items.length,
-          separatorBuilder: (_, _) => const Divider(height: 1),
-          itemBuilder: (ctx, index) {
-            final item = items[index];
-            return ListTile(
-              dense: true,
-              minLeadingWidth: 28,
-              minVerticalPadding: 4,
-              visualDensity: const VisualDensity(horizontal: -2, vertical: -4),
-              contentPadding: const EdgeInsets.symmetric(horizontal: 18),
-              leading: const Icon(Icons.copy_all_outlined, size: 20),
-              title: Text(
-                item.label,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(fontSize: 15, height: 1.15),
-              ),
-              subtitle: item.value == item.label
-                  ? null
-                  : Text(
-                      item.value,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(fontSize: 13, height: 1.1),
-                    ),
-              onTap: () {
-                unawaited(Clipboard.setData(ClipboardData(text: item.value)));
-                _insertQuickExtractValue(item.value);
-              },
-            );
-          },
-        ),
-      ),
-    );
+    setState(() {
+      _quickExtractCandidates = items;
+      _quickExtractPanelVisible = true;
+      _commonPhrasesVisible = false;
+    });
   }
 
   Future<void> _runQuickExtract() async {
@@ -617,7 +616,7 @@ class _ChatPageState extends State<ChatPage> with RouteAware {
         markdown: event.body,
       );
       if (!mounted) return;
-      await _showQuickExtractCandidates(items);
+      _showQuickExtractCandidates(items);
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(
@@ -1190,6 +1189,7 @@ class _ChatPageState extends State<ChatPage> with RouteAware {
     required VoidCallback? onPressed,
     double iconSize = 24,
   }) {
+    final side = (iconSize + 8).clamp(28.0, 44.0);
     return Tooltip(
       message: tooltip,
       child: IconButton(
@@ -1197,9 +1197,9 @@ class _ChatPageState extends State<ChatPage> with RouteAware {
         onPressed: onPressed,
         iconSize: iconSize,
         padding: const EdgeInsets.symmetric(horizontal: 3, vertical: 1),
-        constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
+        constraints: BoxConstraints(minWidth: side, minHeight: side),
         style: IconButton.styleFrom(
-          minimumSize: const Size(28, 28),
+          minimumSize: Size(side, side),
           tapTargetSize: MaterialTapTargetSize.shrinkWrap,
           visualDensity: VisualDensity.compact,
         ),
@@ -1209,11 +1209,44 @@ class _ChatPageState extends State<ChatPage> with RouteAware {
   }
 
   Widget _buildComposerShell(bool isDark, double panelH) {
-    return DecoratedBox(
-      decoration: _composerBarDecoration(isDark),
-      child: _composerExpanded
-          ? _buildExpandedComposer(isDark, panelH)
-          : _buildCollapsedComposer(isDark),
+    if (_composerExpanded) {
+      return DecoratedBox(
+        decoration: _composerBarDecoration(isDark),
+        child: _buildExpandedComposer(isDark, panelH),
+      );
+    }
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        AnimatedSize(
+          duration: const Duration(milliseconds: 180),
+          curve: Curves.easeOutCubic,
+          alignment: Alignment.bottomCenter,
+          child: _quickExtractPanelVisible
+              ? QuickExtractCandidatesPanel(
+                  items: _quickExtractCandidates,
+                  onPick: (item) {
+                    unawaited(
+                      Clipboard.setData(ClipboardData(text: item.value)),
+                    );
+                    _insertQuickExtractValue(item.value);
+                  },
+                  maxHeight: MediaQuery.of(context).size.height * 0.5,
+                )
+              : _commonPhrasesVisible
+              ? CommonPhrasesSheet(
+                  storage: LocalStorage(),
+                  roomId: widget.room.id,
+                  onPick: _insertCommonPhraseValue,
+                  maxHeight: MediaQuery.of(context).size.height * 0.5,
+                )
+              : const SizedBox.shrink(),
+        ),
+        DecoratedBox(
+          decoration: _composerBarDecoration(isDark),
+          child: _buildCollapsedComposer(isDark),
+        ),
+      ],
     );
   }
 
@@ -1251,13 +1284,27 @@ class _ChatPageState extends State<ChatPage> with RouteAware {
                       onPressed: (_uploadingMedia || _quickExtractBusy)
                           ? null
                           : () => unawaited(_runQuickExtract()),
+                      iconSize: 31,
                       icon: _quickExtractBusy
                           ? const SizedBox(
-                              width: 15,
-                              height: 15,
+                              width: 18,
+                              height: 18,
                               child: CircularProgressIndicator(strokeWidth: 2),
                             )
                           : const Icon(Icons.auto_fix_high_outlined),
+                    ),
+                    const SizedBox(width: 12),
+                    _buildCollapsedToolbarIcon(
+                      tooltip: '常用语',
+                      onPressed: _uploadingMedia
+                          ? null
+                          : _toggleCommonPhrasesPanel,
+                      iconSize: 31,
+                      icon: Icon(
+                        _commonPhrasesVisible
+                            ? Icons.keyboard_arrow_up_rounded
+                            : Icons.quickreply_outlined,
+                      ),
                     ),
                   ],
                 ),

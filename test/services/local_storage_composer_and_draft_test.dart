@@ -58,6 +58,18 @@ void main() {
     expect(await ls.loadVoiceKeepAliveEnabled(), false);
   });
 
+  test('room common phrases default empty save and isolate by room', () async {
+    final ls = LocalStorage();
+    expect(await ls.loadRoomCommonPhrases('!a:hs'), isEmpty);
+
+    await ls.saveRoomCommonPhrases('!a:hs', ['  好的  ', '', '稍后处理']);
+    expect(await ls.loadRoomCommonPhrases('!a:hs'), ['好的', '稍后处理']);
+    expect(await ls.loadRoomCommonPhrases('!b:hs'), isEmpty);
+
+    await ls.saveRoomCommonPhrases('!a:hs', []);
+    expect(await ls.loadRoomCommonPhrases('!a:hs'), isEmpty);
+  });
+
   test('bubble max height pct clamps and roundtrips', () async {
     final ls = LocalStorage();
 

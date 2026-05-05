@@ -184,45 +184,22 @@ class _RoomInfoPageState extends State<RoomInfoPage> {
   Future<void> _editRoomNote() async {
     final initial = await LocalStorage().getRoomNote(widget.room.id);
     if (!mounted) return;
-    final controller = TextEditingController(text: initial);
-    try {
-      final ok = await showDialog<bool>(
-        context: context,
-        builder: (ctx) => AlertDialog(
-          title: const Text('房间提示'),
-          content: SingleChildScrollView(
-            child: TextField(
-              controller: controller,
-              maxLines: 12,
-              minLines: 5,
-              decoration: const InputDecoration(
-                hintText: '写给自己看的要点、模板或提醒（仅保存在本机）…',
-                border: OutlineInputBorder(),
-                alignLabelWithHint: true,
-              ),
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(ctx, false),
-              child: const Text('取消'),
-            ),
-            FilledButton(
-              onPressed: () => Navigator.pop(ctx, true),
-              child: const Text('保存'),
-            ),
-          ],
-        ),
-      );
-      if (ok == true && mounted) {
-        await LocalStorage().saveRoomNote(widget.room.id, controller.text);
-        if (!mounted) return;
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text('房间提示已保存')));
-      }
-    } finally {
-      controller.dispose();
+    final text = await showDialog<String>(
+      context: context,
+      builder: (_) => _RoomTextEditDialog(
+        title: '房间提示',
+        minLines: 5,
+        maxLines: 12,
+        initialText: initial,
+        hintText: '写给自己看的要点、模板或提醒（仅保存在本机）…',
+      ),
+    );
+    if (text != null && mounted) {
+      await LocalStorage().saveRoomNote(widget.room.id, text);
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('房间提示已保存')));
     }
   }
 
@@ -231,52 +208,26 @@ class _RoomInfoPageState extends State<RoomInfoPage> {
       widget.room.id,
     );
     if (!mounted) return;
-    final controller = TextEditingController(text: initial);
-    try {
-      final ok = await showDialog<bool>(
-        context: context,
-        builder: (ctx) => AlertDialog(
-          title: const Text('快速提取提示词'),
-          content: SingleChildScrollView(
-            child: TextField(
-              controller: controller,
-              maxLines: 12,
-              minLines: 5,
-              decoration: const InputDecoration(
-                hintText:
-                    '请针对所提供内容中的 markdown 表格，提取 ID 列中的每一项作为可复制选项。\n'
-                    '只返回 JSON：{"items":[{"label":"ID - 标题","value":"ID"}]}。\n'
-                    '顺序必须与表格从上到下完全一致。\n'
-                    '不要提取标题列，不要改写，不要排序，不要去重改变顺序。',
-                border: OutlineInputBorder(),
-                alignLabelWithHint: true,
-              ),
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(ctx, false),
-              child: const Text('取消'),
-            ),
-            FilledButton(
-              onPressed: () => Navigator.pop(ctx, true),
-              child: const Text('保存'),
-            ),
-          ],
-        ),
-      );
-      if (ok == true && mounted) {
-        await LocalStorage().saveRoomQuickExtractPrompt(
-          widget.room.id,
-          controller.text,
-        );
-        if (!mounted) return;
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text('快速提取提示词已保存')));
-      }
-    } finally {
-      controller.dispose();
+    final text = await showDialog<String>(
+      context: context,
+      builder: (_) => _RoomTextEditDialog(
+        title: '快速提取提示词',
+        minLines: 5,
+        maxLines: 12,
+        initialText: initial,
+        hintText:
+            '请针对所提供内容中的 markdown 表格，提取 ID 列中的每一项作为可复制选项。\n'
+            '只返回 JSON：{"items":[{"label":"ID - 标题","value":"ID"}]}。\n'
+            '顺序必须与表格从上到下完全一致。\n'
+            '不要提取标题列，不要改写，不要排序，不要去重改变顺序。',
+      ),
+    );
+    if (text != null && mounted) {
+      await LocalStorage().saveRoomQuickExtractPrompt(widget.room.id, text);
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('快速提取提示词已保存')));
     }
   }
 
@@ -778,6 +729,70 @@ class _RoomInfoPageState extends State<RoomInfoPage> {
           ],
         ),
       ),
+    );
+  }
+}
+
+class _RoomTextEditDialog extends StatefulWidget {
+  const _RoomTextEditDialog({
+    required this.title,
+    required this.initialText,
+    required this.hintText,
+    required this.minLines,
+    required this.maxLines,
+  });
+
+  final String title;
+  final String initialText;
+  final String hintText;
+  final int minLines;
+  final int maxLines;
+
+  @override
+  State<_RoomTextEditDialog> createState() => _RoomTextEditDialogState();
+}
+
+class _RoomTextEditDialogState extends State<_RoomTextEditDialog> {
+  late final TextEditingController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = TextEditingController(text: widget.initialText);
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: Text(widget.title),
+      content: SingleChildScrollView(
+        child: TextField(
+          controller: _controller,
+          maxLines: widget.maxLines,
+          minLines: widget.minLines,
+          decoration: InputDecoration(
+            hintText: widget.hintText,
+            border: const OutlineInputBorder(),
+            alignLabelWithHint: true,
+          ),
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('取消'),
+        ),
+        FilledButton(
+          onPressed: () => Navigator.pop(context, _controller.text),
+          child: const Text('保存'),
+        ),
+      ],
     );
   }
 }

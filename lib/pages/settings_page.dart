@@ -15,6 +15,7 @@ import 'media_preview_size_settings_page.dart';
 import 'profile_page.dart';
 import 'push_notification_settings_page.dart';
 import 'r2_settings_page.dart';
+import 'realtime_secretary_settings_page.dart';
 import 'voice_announcement_settings_page.dart';
 
 class SettingsPage extends StatelessWidget {
@@ -67,6 +68,12 @@ class SettingsPage extends StatelessWidget {
             title: '语音播报',
             subtitle: '豆包 TTS、常驻监听与合成参数',
             onTap: () => _push(context, const VoiceAnnouncementSettingsPage()),
+          ),
+          _SettingsTile(
+            icon: Icons.support_agent_outlined,
+            title: '实时语音秘书',
+            subtitle: '豆包实时语音、暗号唤醒与最近上下文',
+            onTap: () => _push(context, const RealtimeSecretarySettingsPage()),
           ),
           _SettingsTile(
             icon: Icons.notifications_active_outlined,
